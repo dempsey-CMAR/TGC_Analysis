@@ -1,0 +1,129 @@
+---
+title: "Beaver Point vs. East Gibbs Island"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+  
+```{r, echo = FALSE, message=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, fig.width=9, message=FALSE)
+
+library(data.table)    # export example data
+library(dplyr)         # data manipulation 
+library(DT)            # interactive tables
+library(ggplot2)       # figures
+library(here)          # relative files paths
+library(strings)       # convert_depth_to_ordered_factor() function
+library(tgc)           # season functions
+library(purrr)
+
+theme_set(theme_light())
+
+dt_options <- list(
+      dom = 'ft',
+      paging = FALSE,
+      searching = TRUE,
+      scrollY = "500px",
+      pageLength = 500,
+      columnDefs = list(list(className = 'dt-center', targets = "_all"))
+)
+
+```
+
+```{r, echo=FALSE}
+
+# import data
+dat_raw <- list.files(here("data"), pattern = "rds", full.names = TRUE) %>%
+  unlist() %>%
+  map_dfr(readRDS) %>%
+  filter(VARIABLE == "Temperature") %>% 
+  select(-VARIABLE, -SENSOR, -DEPLOYMENT_PERIOD) %>% 
+  filter(STATION == "Birchy Head" |
+           STATION == "Beaver Point" |
+           STATION == "East Gibbs Island" |
+           STATION == "Rook Island") 
+
+dat_seasons <- dat_raw %>% 
+  st_filter_in_growing_seasons(full_season = TRUE,
+                               trend_threshold = 4,
+                               superchill_threshold = -0.7,
+                               max_season = 540) 
+
+gap_table <- dat_seasons %>% 
+  check_for_data_gaps(STATION, SEASON, gap_length = 2, gap_warning = 6) %>% 
+  group_by(STATION, SEASON, DEPTH) %>%
+  summarize(TOTAL_GAP_DAYS = sum(GAP_LENGTH_DAYS)) %>%
+  ungroup()
+
+dat_seasons <- dat_seasons %>% 
+  left_join(gap_table, by = c("STATION", "DEPTH", "SEASON")) %>% 
+  filter(TOTAL_GAP_DAYS < 2) %>% 
+  convert_depth_to_ordered_factor()
+
+
+```
+
+### All Stations
+
+```{r, echo=FALSE, fig.height=10}
+
+dat_seasons %>% 
+  filter(STATION != "Madeline Point", SEASON == "S2" | SEASON == "S1") %>% 
+  convert_depth_to_ordered_factor() %>% 
+  plot_temperature_at_depth(facet_var = "STATION", legend_drop = TRUE)
+
+```
+
+### Beaver Point
+```{r, echo=FALSE, fig.height=10}
+
+dat_raw %>% filter(STATION == "Beaver Point") %>% plot_temperature_at_depth(facet_var = "DEPTH")
+```
+
+### East Gibbs Island
+```{r, echo=FALSE, fig.height=10}
+
+dat_raw %>% filter(STATION == "East Gibbs Island") %>% plot_temperature_at_depth(facet_var = "DEPTH")
+```
+
+
+*Choose Beaver Point because data for all depths for season 2.
+(East Gibbs Island missing data for 10 m)
+
+### Season Table
+```{r}
+
+seasons_table <- dat_seasons %>% 
+  group_by(STATION, SEASON, DEPTH) %>% 
+  summarise(START_SEASON = min(TIMESTAMP),
+            END_SEASON = max(TIMESTAMP)) %>% 
+  ungroup() %>% 
+  mutate(
+    SEASON_DAYS = difftime(END_SEASON, START_SEASON, units = "days"),
+    SEASON_DAYS = as.numeric(round(SEASON_DAYS, digits = 2)),
+    SEASON_MONTHS = round(SEASON_DAYS / 30, digits = 2)
+  ) %>% 
+  convert_depth_to_ordered_factor() %>% 
+  arrange(STATION, SEASON, DEPTH)
+
+```
+
+
+```{r}
+seasons_table %>%
+  mutate(START_SEASON = format(START_SEASON),
+         END_SEASON = format(END_SEASON)) %>% 
+  arrange(STATION, SEASON, DEPTH) %>% 
+  select(-SEASON_DAYS) %>% 
+  datatable(rownames = FALSE, options = dt_options)
+
+```
+
+
+
+
+
+
+
+

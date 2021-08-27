@@ -1,0 +1,361 @@
+---
+title: "Raw Data Figures"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+  
+```{r, echo = FALSE, message=FALSE}
+
+library(here)
+library(purrr)
+library(dplyr)
+library(lubridate)
+library(DT)
+library(ggplot2)
+library(plotly)
+library(leaflet)
+library(tgc)
+library(strings)
+library(RColorBrewer)
+
+
+theme_set(theme_light())
+
+dt_options <- list(
+      dom = 'ft',
+      paging = FALSE,
+      searching = TRUE,
+      scrollY = "500px",
+      pageLength = 500,
+      columnDefs = list(list(className = 'dt-center', targets = "_all"))
+)
+
+```
+
+```{r, echo=FALSE, message=FALSE}
+
+# import data
+dat_raw <- list.files(here("data"), pattern = "rds", full.names = TRUE) %>%
+  unlist() %>%
+  map_dfr(readRDS) %>%
+  filter(VARIABLE == "Temperature") %>% 
+   select(-VARIABLE, -SENSOR, -DEPLOYMENT_PERIOD) %>% 
+  filter(STATION != "Piper Lake", STATION != "Hourglass Lake") 
+
+dat_final <- dat_raw 
+
+```
+
+
+# Example Stations
+
+## Long Season (> 12 months) {.tabset}
+
+### Ingomar
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Ingomar") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### McNutts Island
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "McNutts Island") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Blue Island
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Blue Island") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Flat Island
+
+S1 - 5 m & S2
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Flat Island") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Birchy Head
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Birchy Head") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Shut-In Island
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Shut-In Island") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Shad Bay
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Shad Bay") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Kavanagh Point
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Kavanagh Point") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+
+## Medium Season (8 months to < 12 months) {.tabset}
+
+### Old Point Channel
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Old Point Channel") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Ram Island
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Ram Island") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Borgles Island
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Borgles Island") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### East Gibbs Island
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "East Gibbs Island") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Beaver Point
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Beaver Point") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Wine Harbour
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Wine Harbour") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### 1307
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "1307") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Meal Rock
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Meal Rock") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### The Bull
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "The Bull") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+
+### The Basin
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "The Basin") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+
+### Northeast Branch
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Northeast Branch") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Seal Cove
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Seal Cove") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Madeline Point
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Madeline Point") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Eddy Cove
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Eddy Cove") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Red Point
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Red Point") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+
+## Short Season (< 8 months) {.tabset}
+
+### Borgles Island - S2
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Borgles Island") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Spry Harbour
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Spry Harbour") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Center Bay
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Center Bay") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Rook Island
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Rook Island") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Moose Point
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Moose Point") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+### Pirate Harbour
+
+```{r, echo=FALSE, message=FALSE}
+
+dat_final %>% 
+  filter(STATION == "Pirate Harbour") %>% 
+  plot_temperature_at_depth() 
+
+```
+
+
+
+
+
+
+
+
