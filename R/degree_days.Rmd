@@ -1,0 +1,277 @@
+---
+title: 'Degree Days'
+author: "Danielle Dempsey"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+  
+```{r, echo = FALSE, message=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, fig.width=9, message=FALSE)
+
+library(data.table)    # import example data
+library(dplyr)         # data manipulation 
+library(DT)            # interactive tables
+library(ggplot2)       # figures
+library(here)          # relative files paths
+library(strings)       # convert_depth_to_ordered_factor() function
+library(tgc)           # season functions
+library(plotly)
+library(lubridate)
+
+dt_options <- list(
+      dom = 'ft',
+      paging = FALSE,
+      searching = TRUE,
+      scrollY = "500px",
+      pageLength = 500,
+      columnDefs = list(list(className = 'dt-center', targets = "_all"))
+)
+
+theme_set(theme_light())
+
+```
+
+```{r}
+
+# import data
+dat_raw <- tibble(fread(here("data/TGC_temperature_data.csv"))) %>% 
+  select(-WATERBODY, -LEASE, -LATITUDE, -LONGITUDE) %>% 
+  convert_depth_to_ordered_factor()
+
+colour_pal <- get_colour_palette(dat_raw)
+
+```
+
+## Growing Seasons {.tabset}
+
+```{r, message=FALSE, warning=FALSE}
+
+dat_seasons <- st_filter_in_growing_seasons(dat_raw)
+
+# gap_table <- dat_seasons %>% 
+#   check_for_data_gaps(STATION, SEASON) %>% 
+#   group_by(STATION, SEASON, DEPTH) %>%
+#   summarize(TOTAL_GAP_DAYS = sum(GAP_LENGTH_DAYS)) %>%
+#   ungroup()
+
+# data to plot
+dat_seasons <- dat_seasons %>% 
+  left_join(
+    dat_seasons %>% 
+      check_for_data_gaps(STATION, SEASON) %>% 
+      group_by(STATION, SEASON, DEPTH) %>%
+      summarize(TOTAL_GAP_DAYS = sum(GAP_LENGTH_DAYS)) %>%
+      ungroup(),
+    by = c("STATION", "DEPTH", "SEASON")
+  ) %>% 
+  filter(TOTAL_GAP_DAYS < 2,
+         (STATION == "Birchy Head" & SEASON == "S2") |
+           (STATION == "Beaver Point" & SEASON == "S2") |
+           STATION == "Rook Island"
+  )%>% 
+  convert_depth_to_ordered_factor()
+
+# summary table
+seasons_table <- dat_seasons %>% 
+  group_by(STATION, SEASON, DEPTH) %>% 
+  summarise(START_SEASON = min(TIMESTAMP),
+            END_SEASON = max(TIMESTAMP)) %>% 
+  ungroup() %>% 
+  mutate(
+    SEASON_DAYS = difftime(END_SEASON, START_SEASON, units = "days"),
+    SEASON_DAYS = as.numeric(round(SEASON_DAYS, digits = 2)),
+    SEASON_MONTHS = round(SEASON_DAYS / 30, digits = 2)
+  ) %>% 
+  #select(-SEASON, - SEASON_DAYS) %>% 
+  arrange(STATION,  DEPTH)
+
+```
+
+
+### Birchy Head
+
+```{r}
+
+dat_seasons %>%
+  filter(STATION == "Birchy Head") %>%
+  plot_temperature_at_depth(
+   # facet_var = "DEPTH",
+    colour_palette = colour_pal,
+    date_breaks_major = "2 month",
+    date_labels_format = "%Y-%b"
+  )
+
+```
+
+### Beaver Point
+
+```{r}
+
+dat_seasons %>%
+  filter(STATION == "Beaver Point") %>%
+  plot_temperature_at_depth(
+   # facet_var = "DEPTH",
+    colour_palette = colour_pal,
+    date_breaks_major = "1 month",
+    date_labels_format = "%Y-%b"
+  ) +
+  annotate("rect",
+           xmin = as_datetime("2018-06-01"), 
+           xmax = as_datetime("2018-06-02"),
+           ymin = -5, 
+           ymax = 20, col = "grey")
+
+```
+
+
+### Rook Island
+
+```{r}
+
+dat_seasons %>%
+  filter(STATION == "Rook Island") %>%
+  plot_temperature_at_depth(
+    facet_var = "DEPTH",
+    colour_palette = colour_pal,
+    date_breaks_major = "1 month",
+    date_labels_format = "%Y-%b"
+  )
+
+```
+
+### Season Table
+
+```{r echo=FALSE}
+
+seasons_table %>%
+  mutate(START_SEASON = format(START_SEASON),
+         END_SEASON = format(END_SEASON)) %>% 
+  datatable(rownames = FALSE, options = dt_options)
+
+```
+
+## Degree Days {.tabset}
+
+```{r}
+
+growing_days <- count_growing_days(dat_seasons, STATION)
+
+dd <- count_degree_days(dat_seasons, STATION, growing_days = growing_days)
+
+```
+
+### Figure
+
+```{r}
+
+p <- ggplot(dd, aes(STATION, n_degree_days, col = DEPTH,
+                    text = paste(
+                      "Depth: ", DEPTH, "m", "\n",
+                      "Average Temp: ", AVG_TEMPERATURE, "\n",
+                      "Growing Days: ", n_growing_days, "\n",
+                      "Degree Days: ", n_degree_days)) 
+) +
+  geom_point() +
+  scale_colour_manual("Depth (m)", values = colour_pal) +
+  scale_x_discrete(name = "") +
+  scale_y_continuous(name = "# degree days") +
+  theme_light()
+
+ggplotly(p, tooltip = "text") %>% 
+  config(
+    modeBarButtonsToRemove = list(
+      "toggleSpikelines", "autoScale2d", "select2d", "lasso2d",
+      "hoverCompareCartesian", "zoom2d"
+    ),
+    displaylogo = FALSE,
+    toImageButtonOptions = list(
+      format = "png",
+      filename = "degree_days",
+      width = 1100,
+      height = 1100
+    )) %>%
+  layout(
+    margin = list(b = 90, l = 90) # to fully display the x and y axis labels
+  )
+
+```
+
+### Table
+
+```{r}
+
+dd %>%
+  select(-SEASON, -START_SEASON, -END_SEASON) %>% 
+  datatable(rownames = FALSE, options = dt_options)
+
+```
+
+
+## Thermal Growth Model
+
+
+```{r}
+
+w_t <- 5
+tgc <- c(0.25, 0.3, 0.35)
+
+
+tgc_table <- TGC_calculate_initial_weight(dd, final_weight = w_t, tgc = tgc)
+
+```
+
+
+
+```{r}
+
+
+dat <- tgc_table %>% 
+  filter(STATION == "Beaver Point") 
+
+ 
+p <-  ggplot(dat, aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, col = DEPTH,
+             text = paste(
+                      "Depth: ", DEPTH, "m", "\n",
+                      "Average Temp: ", AVG_TEMPERATURE, "\n",
+                      "Growing Days: ", n_growing_days, "\n",
+                      "Degree Days: ", n_degree_days, "\n",
+                      "Initial Weight: ", TGC_INITIAL_WEIGHT ))) +
+  geom_point() +
+  scale_colour_manual("Depth (m)", values = colour_pal, drop = FALSE) +
+  scale_x_discrete("TGC Value") +
+  scale_y_continuous("Initial Weight (kg)")
+
+
+ggplotly(p, tooltip = "text") %>% 
+  config(
+    modeBarButtonsToRemove = list(
+      "toggleSpikelines", "autoScale2d", "select2d", "lasso2d",
+      "hoverCompareCartesian", "zoom2d"
+    ),
+    displaylogo = FALSE,
+    toImageButtonOptions = list(
+      format = "png",
+      filename = "degree_days",
+      width = 1100,
+      height = 1100
+    )) %>%
+  layout(
+    margin = list(b = 90, l = 90) # to fully display the x and y axis labels
+  )
+
+```
+
+
+
+
+
+
+
+
+
+
+
