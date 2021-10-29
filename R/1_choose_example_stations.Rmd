@@ -72,10 +72,10 @@ Filter `dat_raw` for STATION + DEPTH data series with full season of data using 
 ```{r, message=FALSE}
 
 dat_seasons <-  dat_raw %>%
-  st_filter_in_growing_seasons(full_season = TRUE,
-                               trend_threshold = 4,
-                               superchill_threshold = -0.7,
-                               max_season = 540) 
+  filter_in_growing_seasons(full_season = TRUE,
+                            trend_threshold = 4,
+                            superchill_threshold = -0.7,
+                            max_season = 540) 
 
 ``` 
 
