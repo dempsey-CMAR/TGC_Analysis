@@ -40,6 +40,7 @@ theme_set(theme_light())
 # import data
 dat_raw <- tibble(fread(here("data/TGC_temperature_data.csv"))) %>% 
   select(-WATERBODY, -LEASE, -LATITUDE, -LONGITUDE) %>% 
+  filter(!(STATION == "Birchy Head" & DEPTH == 2)) %>% 
   convert_depth_to_ordered_factor()
 
 colour_pal <- get_colour_palette(dat_raw)
@@ -50,33 +51,23 @@ colour_pal <- get_colour_palette(dat_raw)
 
 ```{r, message=FALSE, warning=FALSE}
 
-dat_seasons <- st_filter_in_growing_seasons(dat_raw)
-
-# gap_table <- dat_seasons %>% 
-#   check_for_data_gaps(STATION, SEASON) %>% 
-#   group_by(STATION, SEASON, DEPTH) %>%
-#   summarize(TOTAL_GAP_DAYS = sum(GAP_LENGTH_DAYS)) %>%
-#   ungroup()
+#dat_filt <- filter_in_growing_seasons(dat_raw)
 
 # data to plot
-dat_seasons <- dat_seasons %>% 
-  left_join(
-    dat_seasons %>% 
-      check_for_data_gaps(STATION, SEASON) %>% 
-      group_by(STATION, SEASON, DEPTH) %>%
-      summarize(TOTAL_GAP_DAYS = sum(GAP_LENGTH_DAYS)) %>%
-      ungroup(),
-    by = c("STATION", "DEPTH", "SEASON")
-  ) %>% 
-  filter(TOTAL_GAP_DAYS < 2,
-         (STATION == "Birchy Head" & SEASON == "S2") |
+# -- CAN send this to count_degree_days() (but NOT if heat stress events are filtered)
+dat_seasons <-  dat_raw %>% 
+  filter_in_growing_seasons() %>% 
+  filter((STATION == "Birchy Head" & SEASON == "S2") |
            (STATION == "Beaver Point" & SEASON == "S2") |
-           STATION == "Rook Island"
-  )%>% 
-  convert_depth_to_ordered_factor()
+           (STATION == "Rook Island" & SEASON == "S1")
+  )
+
+dat_filt <- dat_seasons %>% 
+  filter_out_heat_stress_events() %>% 
+  convert_depth_to_ordered_factor() 
 
 # summary table
-seasons_table <- dat_seasons %>% 
+seasons_table <- dat_filt %>% 
   group_by(STATION, SEASON, DEPTH) %>% 
   summarise(START_SEASON = min(TIMESTAMP),
             END_SEASON = max(TIMESTAMP)) %>% 
@@ -96,7 +87,7 @@ seasons_table <- dat_seasons %>%
 
 ```{r}
 
-dat_seasons %>%
+dat_filt %>%
   filter(STATION == "Birchy Head") %>%
   plot_temperature_at_depth(
    # facet_var = "DEPTH",
@@ -105,25 +96,34 @@ dat_seasons %>%
     date_labels_format = "%Y-%b"
   )
 
+
+plot_filtered_data(filter(dat_raw, STATION == "Birchy Head"),
+                   filter(dat_filt, STATION == "Birchy Head"))
+
 ```
 
 ### Beaver Point
 
 ```{r}
 
-dat_seasons %>%
+dat_filt %>%
   filter(STATION == "Beaver Point") %>%
   plot_temperature_at_depth(
    # facet_var = "DEPTH",
     colour_palette = colour_pal,
     date_breaks_major = "1 month",
     date_labels_format = "%Y-%b"
-  ) +
-  annotate("rect",
-           xmin = as_datetime("2018-06-01"), 
-           xmax = as_datetime("2018-06-02"),
-           ymin = -5, 
-           ymax = 20, col = "grey")
+  ) #+
+  # annotate("rect",
+  #          xmin = as_datetime("2018-06-01"), 
+  #          xmax = as_datetime("2018-06-02"),
+  #          ymin = -5, 
+  #          ymax = 20, col = "grey")
+
+
+plot_filtered_data(filter(dat_raw, STATION == "Beaver Point"),
+                   filter(dat_filt, STATION == "Beaver Point"))
+
 
 ```
 
@@ -135,11 +135,14 @@ dat_seasons %>%
 dat_seasons %>%
   filter(STATION == "Rook Island") %>%
   plot_temperature_at_depth(
-    facet_var = "DEPTH",
+   # facet_var = "DEPTH",
     colour_palette = colour_pal,
     date_breaks_major = "1 month",
     date_labels_format = "%Y-%b"
   )
+
+plot_filtered_data(filter(dat_raw, STATION == "Rook Island"),
+                   filter(dat_filt, STATION == "Rook Island"))
 
 ```
 
@@ -158,9 +161,22 @@ seasons_table %>%
 
 ```{r}
 
-growing_days <- count_growing_days(dat_seasons, STATION)
+# this includes SEASONS that we are not considering
+dd1 <- count_degree_days(dat_raw, STATION)
 
-dd <- count_degree_days(dat_seasons, STATION, growing_days = growing_days)
+# this only includes the STATION + SEASONS we are interested in
+dd2 <- count_degree_days(dat_seasons, STATION)
+
+# can't send dat_filt because the function needs to know where to find the heat stress intervals (instead of just having a gap) 
+# is there a way to write a good error message for this?
+# count_degree_days(dat_filt, STATION)
+# count_growing_days(dat_filt, STATION)
+
+
+dd <- count_degree_days(dat_seasons, STATION)
+
+
+plot_degree_days(dd, facet_var = "STATION")
 
 ```
 
@@ -219,21 +235,19 @@ dd %>%
 w_t <- 5
 tgc <- c(0.25, 0.3, 0.35)
 
-
 tgc_table <- TGC_calculate_initial_weight(dd, final_weight = w_t, tgc = tgc)
+
+
+x <- dat_seasons %>% 
+  count_degree_days(STATION) %>% 
+  TGC_calculate_initial_weight(final_weight = w_t, tgc = tgc)
 
 ```
 
 
-
 ```{r}
 
-
-dat <- tgc_table %>% 
-  filter(STATION == "Beaver Point") 
-
- 
-p <-  ggplot(dat, aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, col = DEPTH,
+p <-  ggplot(tgc_table, aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, col = DEPTH,
              text = paste(
                       "Depth: ", DEPTH, "m", "\n",
                       "Average Temp: ", AVG_TEMPERATURE, "\n",
@@ -243,7 +257,8 @@ p <-  ggplot(dat, aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, col = DEPTH,
   geom_point() +
   scale_colour_manual("Depth (m)", values = colour_pal, drop = FALSE) +
   scale_x_discrete("TGC Value") +
-  scale_y_continuous("Initial Weight (kg)")
+  scale_y_continuous("Initial Weight (kg)") +
+  facet_wrap(~STATION)
 
 
 ggplotly(p, tooltip = "text") %>% 
