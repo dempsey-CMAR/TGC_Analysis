@@ -19,7 +19,6 @@ library(RColorBrewer)  # colour scale for season length plot
 library(strings)       # convert_depth_to_ordered_factor() function
 library(tgc)           # season functions
 
-
 theme_set(theme_light())
 
 dt_options <- list(
@@ -40,7 +39,8 @@ dat_raw <- list.files(here("data"), pattern = "rds", full.names = TRUE) %>%
   unlist() %>%
   map_dfr(readRDS) %>%
   filter(VARIABLE == "Temperature") %>% 
-  select(-VARIABLE, -SENSOR, -DEPLOYMENT_PERIOD) %>% 
+  select(-WATERBODY, -LEASE, -VARIABLE, -SENSOR, -DEPLOYMENT_PERIOD, 
+         -UNITS, -MOORING) %>% 
   filter(STATION != "Piper Lake", STATION != "Hourglass Lake") 
 
 ```
@@ -51,7 +51,7 @@ Explore temperature data to select example stations for the TGC paper
   - Part 2: Data Gaps
   - Part 3: Growing Season Length
   - Part 4: Visualize Data Series 
-  - PArt 5: Final Selection
+  - Part 5: Final Selection
 
 # Station Map
 
@@ -67,15 +67,17 @@ dat_raw %>%
 
 # Part 1: Growing Seasons {.tabset}
 
-Filter `dat_raw` for STATION + DEPTH data series with full season of data using the `st_filter_in_growing_seasons()` function, with `full_season = TRUE`. This will filter out data that is not part of a growing season, and assign each remaining observation a `SEASON` label.
+Filter `dat_raw` for STATION + DEPTH data series with full season of data using the `filter_in_growing_seasons()` function, with `full_season = TRUE`. This will filter out data that is not part of a growing season, and assign each remaining observation a `SEASON` label.
 
 ```{r, message=FALSE}
 
 dat_seasons <-  dat_raw %>%
-  filter_in_growing_seasons(full_season = TRUE,
-                            trend_threshold = 4,
-                            superchill_threshold = -0.7,
-                            max_season = 540) 
+  filter_in_growing_seasons(
+    full_season = TRUE,
+    trend_threshold = 4,
+    superchill_threshold = -0.7,
+    max_season = 540
+  ) 
 
 ``` 
 
@@ -114,12 +116,13 @@ p <- gap_table %>%
   convert_depth_to_ordered_factor() %>% 
   arrange(desc(TOTAL_GAP_DAYS)) %>% 
   mutate(INDEX = 1:n()) %>% 
-  ggplot(aes(INDEX, TOTAL_GAP_DAYS, col = DEPTH,
-             text = paste(
-               "Station: ", STATION, "\n",
-               "Depth: ", DEPTH, "\n",
-               "Season: ", SEASON, "\n",
-               "Gap Days: ", TOTAL_GAP_DAYS))
+  ggplot(
+    aes(INDEX, TOTAL_GAP_DAYS, col = DEPTH,
+        text = paste(
+          "Station: ", STATION, "\n",
+          "Depth: ", DEPTH, "\n",
+          "Season: ", SEASON, "\n",
+          "Gap Days: ", TOTAL_GAP_DAYS))
   ) + 
   geom_point() +
   scale_color_manual(name = "Depth (m)", values = cols) 
@@ -140,11 +143,13 @@ gap_table_filt <- gap_table %>%
 cols <- get_colour_palette(gap_table_filt)
 
 p <-  gap_table_filt %>% 
-  ggplot(aes(TOTAL_GAP_DAYS, STATION, fill = DEPTH,
-             text = paste(
-               "Station: ", STATION, "\n",
-               "Depth: ", DEPTH, "\n",
-               "Gap Days: ", TOTAL_GAP_DAYS))
+  ggplot(
+    aes(TOTAL_GAP_DAYS, STATION, fill = DEPTH,
+        text = paste(
+          "Station: ", STATION, "\n",
+          "Depth: ", DEPTH, "\n",
+          "Season: ", SEASON, "\n",
+          "Gap Days: ", TOTAL_GAP_DAYS))
   ) +
   geom_col(
     position = position_dodge2(preserve = "single", reverse = TRUE, padding = 0)
@@ -210,6 +215,8 @@ seasons_table <- dat_seasons %>%
   convert_depth_to_ordered_factor() %>% 
   arrange(STATION, SEASON, DEPTH)
 
+
+# use above instead of identify_growing_seasons() to find start/end of each season
 # can't use identify_growing_seasons() on data that is already filtered for seasons:
 ## for full_seasons = TRUE: returns empty dataframe because data always starts above trend_theshold and never cross superchill_threshold
 ## for full_seasons = FALSE, it adds additional seasons; e.g., S1 is from June 2019 to April 2020; it will add a S2 from January 1, 2020 to April 2020
@@ -271,91 +278,111 @@ seasons_table %>%
 
 ## Season Statistics {.tabset}
 
-```{r}
-
-season_summary <- seasons_table %>%
-  group_by(STATION) %>%
-  summarise(AVERAGE_SEASON_MONTHS = mean(SEASON_MONTHS),
-            NUMBER_SEASONS = n()) %>%
-  ungroup() %>%
-  mutate(AVERAGE_SEASON_MONTHS = round(AVERAGE_SEASON_MONTHS, digits = 2))
-
-mean_season <- mean(season_summary$AVERAGE_SEASON_MONTHS)
-
-```
-
-Mean season length is `r round(mean_season, digits = 2)` months long. 
-
-### Figure 5
-
 ```{r, echo=FALSE}
-
-p <- season_summary %>%
-  ggplot(aes(x = AVERAGE_SEASON_MONTHS,
-             y = reorder(STATION, -NUMBER_SEASONS),
-             fill = factor(NUMBER_SEASONS),
-             text = paste("Average Season: ", AVERAGE_SEASON_MONTHS, "\n",
-                          "Number Seasons: ", NUMBER_SEASONS))) +
-  geom_col(
-    position = position_dodge2(preserve = "single", reverse = TRUE, padding = 0)
-  ) +
-  geom_vline(xintercept = mean_season) +
-  scale_y_discrete(name = "", limits = rev) +
-  scale_fill_manual(
-    name = "Number Seasons",
-    values = brewer.pal(
-      n = length(unique(season_summary$NUMBER_SEASONS)), name = "Dark2"
-      )
-  ) +
-  theme(panel.grid.major.y =  element_blank())
-
-
-ggplotly(p, tooltip = "text")
-
+short <- 8.5
+long <- 17
 ```
 
+Based on the analysis below:
 
-### Table 4
+   - Long season => `r long` months (red)
+   - Medium season: `r short`  to < `r long` months (orange)
+   - Short season: < `r short` (blue)
 
-```{r echo=FALSE}
-
-season_summary %>%
-  arrange(AVERAGE_SEASON_MONTHS) %>% 
-  datatable(rownames = FALSE, options = dt_options)
-
-```
-
-
-# Part 4: Visualize Data Series
-
-Based on the above analysis:
-
-   - Long season = > 12 months (red)
-   - Medium season: 8  - < 12 months (orange)
-   - Short season: < 8 months (blue)
-
-NOTE: Figures do NOT show all data for each station - only data for FULL seasons.
 
 ```{r, echo=FALSE}
 
 seasons_table <- seasons_table %>% 
   mutate(
     SEASON_CLASS = case_when(
-      SEASON_MONTHS < 8 ~ "Short",
-      SEASON_MONTHS >= 8 & SEASON_MONTHS < 12 ~ "Medium",
-      SEASON_MONTHS >= 12 ~ "Long"
+      SEASON_MONTHS < short ~ "Short",
+      SEASON_MONTHS >= short & SEASON_MONTHS < long ~ "Medium",
+      SEASON_MONTHS >= long ~ "Long"
     ),
-    SEASON_CLASS = ordered(factor(SEASON_CLASS), 
-                           levels = c("Short", "Medium", "Long"))
+    SEASON_CLASS = ordered(
+      factor(SEASON_CLASS), levels = c("Short", "Medium", "Long")
+    )
   ) %>% 
   select(STATION, SEASON, DEPTH, SEASON_MONTHS, SEASON_CLASS)
 
+n_depths <- seasons_table %>% 
+  group_by(STATION, SEASON) %>% 
+  summarise(n_depths = n(), .groups = "drop" )
+
 # add season length column
 dat_final <- dat_seasons %>% 
-  left_join(seasons_table, by = c("STATION", "SEASON", "DEPTH")) 
+  left_join(seasons_table, by = c("STATION", "SEASON", "DEPTH")) %>% 
+  left_join(n_depths, by = c("STATION", "SEASON")) %>% 
+  filter(n_depths > 1) %>% 
+  select(-n_depths)
 
 ```
 
+### Figure 5
+```{r, echo=FALSE}
+p <- ggplot(seasons_table, aes(x = SEASON_MONTHS, fill = DEPTH)) +
+  geom_histogram(binwidth = 0.5) +
+  scale_fill_manual(name = "Depth (m)", values = cols) +
+  scale_x_continuous("Season Length (months)") +
+  labs(title = "Histogram of season length (all STATION, SEASON, DEPTHs)")
+
+ggplotly(p)
+
+```
+
+### Figure 6
+```{r, echo=FALSE}
+p <- ggplot(seasons_table, aes(y = SEASON_MONTHS)) +
+  geom_boxplot() +
+  scale_y_continuous("Season Length (months)") +
+  labs(title = "Boxplot of season length (all STATION, SEASON, DEPTHS)") +
+  theme(axis.text.x = element_blank())
+  
+ggplotly(p)
+
+```
+
+### Figure 7
+```{r, echo=FALSE}
+p <- seasons_table %>% 
+  filter(SEASON_MONTHS < 17) %>% 
+  ggplot(aes(x = SEASON_MONTHS, fill = DEPTH)) +
+  geom_histogram(binwidth = 0.5) +
+  scale_fill_manual(name = "Depth (m)", values = cols) +
+  scale_x_continuous("Season Length (months)") +
+  labs(title = "Season length < 17 months")
+
+ggplotly(p)
+```
+
+### Figure 8
+```{r, echo=FALSE}
+p <- seasons_table %>% 
+  filter(SEASON_MONTHS < 17) %>% 
+  ggplot(aes(y = SEASON_MONTHS)) +
+  geom_boxplot() +
+  scale_y_continuous("Season Length (months)") +
+  labs(title = "Season length < 17 months") +
+  theme(axis.text.x = element_blank())
+  
+ggplotly(p)
+
+```
+
+### Figure 9
+```{r, echo=FALSE}
+p <- seasons_table %>% 
+  ggplot(aes(x = SEASON_CLASS, y = SEASON_MONTHS)) +
+  geom_boxplot() +
+  scale_x_discrete("") +
+  scale_y_continuous("Season Length (months)") 
+
+ggplotly(p)
+
+```
+
+
+# Part 4: Visualize Data Series 
 
 ```{r, echo=FALSE}
 
@@ -363,7 +390,7 @@ rad <- 8
 alpha = 0.5
 
 dat_map <- dat_final %>% 
-  select(WATERBODY, STATION, SEASON, SEASON_CLASS, LATITUDE, LONGITUDE) %>% 
+  select(STATION, SEASON, SEASON_CLASS, LATITUDE, LONGITUDE) %>% 
   distinct(STATION, SEASON, .keep_all = TRUE) 
 
 leaflet(dat_map) %>%
@@ -395,350 +422,38 @@ leaflet(dat_map) %>%
   
 ```
 
+NOTE: Figures only show data for FULL seasons.
 
-## Long Season (> 12 months) {.tabset}
+```{r, echo=FALSE, message=FALSE, results='asis'}
 
-### Ingomar
+season_cat  <- c("Long", "Medium", "Short")
 
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Ingomar") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### McNutts Island
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "McNutts Island") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Blue Island
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Blue Island") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Flat Island 
-
-S1 - 5 m & S2
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Flat Island") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Birchy Head
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Birchy Head") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Shut-In Island
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Shut-In Island") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Shad Bay
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Shad Bay") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Kavanagh Point
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Kavanagh Point") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-
-## Medium Season (8 months to < 12 months) {.tabset}
-
-### Old Point Channel
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Old Point Channel") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Ram Island
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Ram Island") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Borgles Island - S1
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Borgles Island") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### East Gibbs Island
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "East Gibbs Island") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Beaver Point
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Beaver Point") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Wine Harbour
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Wine Harbour") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### 1307
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "1307") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Meal Rock
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Meal Rock") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### The Bull
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "The Bull") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-
-### The Basin
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "The Basin") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-
-### Northeast Branch
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Northeast Branch") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Seal Cove
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Seal Cove") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Madeline Point
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Madeline Point") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Eddy Cove
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Eddy Cove") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Red Point
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Red Point") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-
-## Short Season (< 8 months) {.tabset}
-
-NOTE: Many "short seasons" are at deep depths; the shallower depths were filtered out because missing START_SEASON (i.e., data series begins above the 4-degree threshold)
-
-### Borgles Island - S2
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Borgles Island") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Spry Harbour
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Spry Harbour") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Center Bay
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Center Bay") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Rook Island
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Rook Island") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Moose Point
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Moose Point") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-### Pirate Harbour
-
-```{r, echo=FALSE, message=FALSE}
-
-dat_final %>% 
-  filter(STATION == "Pirate Harbour") %>% 
-  plot_temperature_at_depth(facet_var = "SEASON") 
-
-```
-
-
-# Part 5: Final Selection
-
-Long season: Birchy Head
-
-  - 6 depths 
-  - No superchill at any depth for any season
-  - Good example of hedge-hogging 
+for(j in seq_along(season_cat)){
   
-Medium Season: Madeline Point
+  cat('\n##', season_cat[j], "Seasons {.tabset} \n")
   
-  - 5 depths
-  - High variability but limited stratification
-  - No obvious hurricane signals (e.g., East Gibbs Island)
+  stations_j <- dat_final %>%
+    filter(SEASON_CLASS == season_cat[j]) %>% 
+    select(STATION) %>% 
+    distinct()
+  stations_j <- sort(stations_j$STATION)
   
-Rook Island
-
- - 4 depths
- - Relatively shallow compared to other "short" season examples
- - 2 m and 5 m might be "medium" seasons, but we don't have data from earlier in the season so they were filtered out
-
-```{r, eval=FALSE}
-
-dat_example <- dat_raw %>% 
-  filter(STATION == "Birchy Head" |
-           STATION == "Beaver Point" |
-           STATION == "Rook Island") 
-
-fwrite(dat_example, file = here("data/TGC_temperature_data.csv"))
-
-#
-# dat_example2 <- dat_raw %>% 
-#   filter(STATION == "Beaver Point" |
-#            STATION == "East Gibbs Island") 
-# 
-# fwrite(dat_example2, file = here("data/TGC_temperature_data2.csv"))
-
+  for(i in seq_along(stations_j)){
+    
+    cat('\n###', stations_j[i], '\n')
+    
+    cat('\n')
+    
+    p <- dat_final %>% 
+      filter(SEASON_CLASS == season_cat[j], 
+             STATION == stations_j[i]) %>% 
+      plot_temperature_at_depth(facet_var = "SEASON",
+                                date_labels_format = "%Y-%b") 
+    
+    print(p)
+    
+    cat('\n')
+    
+  }
+}
 ```
-
-
-
-
