@@ -1,5 +1,5 @@
 ---
-title: 'Figures & Analysis'
+title: 'Figures'
 author: "Danielle Dempsey"
 date: "`r Sys.Date()`"
 output:
@@ -22,11 +22,12 @@ library(glue)
 library(here)          # relative files paths
 library(leaflet)       # interactive map   
 library(lubridate)
+library(RColorBrewer)  # for TGC model figure
 library(sf)            # static map for paper
 library(strings)       # convert_depth_to_ordered_factor() function
 library(tgc)           # season functions
 library(plotly)
-
+library(viridis)
 
 dt_options <- list(
       dom = 'ft',
@@ -44,109 +45,114 @@ theme_set(theme_light())
 
 ```{r}
 
-# import data
-dat_raw <- import_strings_data(
-  add_county_col = FALSE,
-  county = c("Halifax", "Guysborough_Dover Bay", "Lunenburg")
-) %>%
-  filter(VARIABLE == "Temperature") %>% 
-  select(-WATERBODY, -LEASE, -VARIABLE, -SENSOR, -DEPLOYMENT_PERIOD, 
-         -UNITS, -MOORING) %>% 
-  filter(
-    STATION == "Flat Island" | 
-      STATION == "Beaver Point" | 
-      STATION == "Madeline Point"
-  ) %>% 
-  convert_depth_to_ordered_factor() %>% 
-  mutate(
-    STATION = ordered(
-      STATION, levels = c("Madeline Point", "Beaver Point", "Flat Island")
-    )
-  )
+results <- readRDS(here("results/model_results.rds"))
 
-colour_pal <- get_colour_palette(dat_raw)
+dat_raw <- results$dat_raw
+dat_seasons <- results$dat_seasons
+dat_filt <- results$dat_filt
+gap_table <- results$gap_table
+dd <- results$dd
+tgc_table <- results$tgc_table
 
 ```
 
 ## Station Map
 
 ```{r, echo=FALSE}
-
-dat_map <- dat_raw %>% 
-  distinct(STATION, .keep_all = TRUE) 
-
-dat_map %>% 
-  leaflet() %>%
-  addProviderTiles(providers$CartoDB.Positron)%>%
-  addMarkers(~LONGITUDE, ~LATITUDE, label = ~STATION)
+# 
+# dat_map <- dat_raw %>% 
+#   distinct(STATION, .keep_all = TRUE) 
+# 
+# dat_map %>% 
+#   leaflet() %>%
+#   addProviderTiles(providers$CartoDB.Positron)%>%
+#   addMarkers(~LONGITUDE, ~LATITUDE, label = ~STATION)
 
 ```
 
 
 ```{r, echo=FALSE, eval=FALSE}
-
-dat_map <- dat_map %>% 
-  mutate(
-    SEASON = case_when(
-      STATION == "Flat Island" ~ "Long Season",
-      STATION == "Beaver Point" ~ "Medium Season",
-      STATION == "Madeline Point" ~ "Short Season"
-    ),
-    LABEL = glue("{STATION} \n ({SEASON})")) %>% 
-  st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = 4326, agr = "constant") 
-
-map_box <- data.frame(Long = c(-66, -59.9), Lat = c(43.5, 47)) %>%
-  st_as_sf(coords = c("Long", "Lat"), crs = 4326)
-
-ggplot() +
-  geom_sf(data = map_box) +
-  annotation_map_tile(type = "cartolight", zoomin = -1) +
-  geom_sf(data = dat_map) +
-  geom_sf_label(
-    data = dat_map, aes(label = LABEL),
-    label.size = NA, fill = NA, nudge_y = -0.25, size = 2.7
-  ) +
-  scale_x_continuous(breaks = c(seq(-60, -66, -2))) +
-  scale_y_continuous(breaks = c(seq(44, 47, 1))) +
-  annotation_scale(location = "br") +
-  annotation_north_arrow(
-    location = "tl", which_north = "true",
-    height = unit(1, "cm"),
-    width = unit(1, "cm")
-  ) +
-  theme(axis.title = element_blank(),
-        text = element_text(size = 10))
-
-ggsave(
-  filename = "figure1.png",
-  path = here("figs"),
-  device = "png",
-  width = 11.2, height = 8, units = "cm",
-  dpi = 600
-)
-
-```
-
-
-
-
-```{r, message=FALSE, warning=FALSE}
-
-dat_seasons <- fread(here("results/dat_seasons.csv"), data.table = FALSE)
-# gap_table <- fread(here("results/gap_table.csv"), data.table = FALSE)
-dd <- fread(here("results/dd.csv"), data.table = FALSE)
-tgc_table <- fread(here("results/tgc_table.csv"), data.table = FALSE)
-dat_filt <- fread(here("results/dat_filt.csv"), data.table = FALSE)
+# 
+# dat_map <- dat_map %>% 
+#   mutate(
+#     SEASON = case_when(
+#       STATION == "Flat Island" ~ "Long Season",
+#       STATION == "Beaver Point" ~ "Medium Season",
+#       STATION == "Madeline Point" ~ "Short Season"
+#     ),
+#     LABEL = glue("{STATION} \n ({SEASON})")) %>% 
+#   st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = 4326, agr = "constant") 
+# 
+# map_box <- data.frame(Long = c(-66, -59.9), Lat = c(43.5, 47)) %>%
+#   st_as_sf(coords = c("Long", "Lat"), crs = 4326)
+# 
+# ggplot() +
+#   geom_sf(data = map_box) +
+#   annotation_map_tile(type = "cartolight", zoomin = -1) +
+#   geom_sf(data = dat_map) +
+#   geom_sf_label(
+#     data = dat_map, aes(label = LABEL),
+#     label.size = NA, fill = NA, nudge_y = -0.25, size = 2.7
+#   ) +
+#   scale_x_continuous(breaks = c(seq(-60, -66, -2))) +
+#   scale_y_continuous(breaks = c(seq(44, 47, 1))) +
+#   annotation_scale(location = "br") +
+#   annotation_north_arrow(
+#     location = "tl", which_north = "true",
+#     height = unit(1, "cm"),
+#     width = unit(1, "cm")
+#   ) +
+#   theme(axis.title = element_blank(),
+#         text = element_text(size = 10))
+# 
+# ggsave(
+#   filename = "figure1.png",
+#   path = here("figs"),
+#   device = "png",
+#   width = 11.2, height = 8, units = "cm",
+#   dpi = 600
+# )
 
 ```
 
 
 ```{r, echo=FALSE}
+i <- 1
 n_days <- 14
 text_size <- 8
 plot_theme <- theme(axis.text = element_text(size = text_size))
 
+colour_pal <- viridis(5, direction = -1)
+
 ```
+
+### TGC Model
+
+```{r}
+
+dd_input <- seq(500, 5000, 1)
+
+dd_example <- data.frame(n_degree_days = dd_input)
+
+w0 <- TGC_calculate_initial_weight(
+  dd_example, final_weight = 5.5, tgc = c(0.25, 0.30, 0.35)
+)
+
+# w0 <- w0 %>% 
+#   mutate(dw = 3 * (1.83 - TGC/1000*n_degree_days)^2)
+
+p1 <- ggplot(w0, aes(n_degree_days, TGC_INITIAL_WEIGHT, col = factor(TGC))) +
+  # geom_point() +
+  geom_line(size = 1.5) +
+  scale_x_continuous("Number of Degree Days") +
+  scale_y_continuous("Initial Weight (kg)") +
+  scale_colour_manual("TGC Value", values = brewer.pal(3, "Dark2")) +
+  plot_theme 
+
+ggplotly(p1)
+
+```
+Figure `r i`: Thermal growth coefficient model for three TGC values. 
 
 
 ## Growing Seasons {.tabset}
@@ -154,52 +160,83 @@ plot_theme <- theme(axis.text = element_text(size = text_size))
 ### Madeline Point (Short Season)
 
 ```{r, echo=FALSE, message=FALSE}
+i <- i +1
 
-short_filt <- dat_filt %>%
-  filter(STATION == "Madeline Point")
+short_filt <- dat_filt %>% filter(STATION == "Madeline Point")
 
-min_timestamp <- min(short_filt$TIMESTAMP) - days(n_days)
-max_timestamp <- max(short_filt$TIMESTAMP) + days(n_days)
+min_timestamp <- min(short_filt$TIMESTAMP)
+max_timestamp <- max(short_filt$TIMESTAMP)
 
 short_raw <- dat_raw %>% 
-  filter(STATION == "Madeline Point",
-         TIMESTAMP >= min_timestamp, TIMESTAMP <= max_timestamp)
+  filter(
+    STATION == "Madeline Point",
+    TIMESTAMP >= min_timestamp & TIMESTAMP <= max_timestamp
+  )
 
-p2 <- plot_filtered_data(short_raw, short_filt,
-                         date_breaks_major = "1 month",
-                         date_labels_format = "%Y-%b", 
-                         plotly_friendly = FALSE) +
+p2 <- plot_filtered_data(
+  short_raw, short_filt,
+  colour_palette = colour_pal,
+  date_breaks_major = "1 month",
+  date_labels_format = "%Y-%b",
+  plotly_friendly = FALSE
+) +
   plot_theme
-  
+
 p2
 
 ```
-
 
 ### Beaver Point (Medium Season)
 
 ```{r, echo=FALSE, message=FALSE}
 
-med_filt <- dat_filt %>%
-  filter(STATION == "Beaver Point")
+med_filt <- dat_filt %>% filter(STATION == "Beaver Point")
 
-min_timestamp <- min(med_filt$TIMESTAMP) - days(n_days)
-max_timestamp <- max(med_filt$TIMESTAMP) + days(n_days)
+min_timestamp <- min(med_filt$TIMESTAMP) 
+max_timestamp <- max(med_filt$TIMESTAMP)
 
-med_raw <- med_raw %>% 
-  filter(STATION == "Beaver Point",
-         TIMESTAMP >= min_timestamp, TIMESTAMP <= max_timestamp)
+med_raw <- dat_raw %>% 
+  filter(
+    STATION == "Beaver Point",
+    TIMESTAMP >= min_timestamp & TIMESTAMP <= max_timestamp
+  )
 
-p2 <- plot_filtered_data(med_raw, med_filt,
-                         date_breaks_major = "1 month",
-                         date_labels_format = "%Y-%b", 
-                         plotly_friendly = FALSE) +
+p2 <- plot_filtered_data(
+  med_raw, med_filt,
+  colour_palette = colour_pal,
+  date_breaks_major = "1 month",
+  date_labels_format = "%Y-%b",
+  plotly_friendly = FALSE) +
   plot_theme
-  
+
 p2
 
 ```
 
+```{r, echo=FALSE, message=FALSE}
+
+long_filt <- dat_filt %>% filter(STATION == "Flat Island")
+
+min_timestamp <- min(long_filt$TIMESTAMP) 
+max_timestamp <- max(long_filt$TIMESTAMP)
+
+long_raw <- dat_raw %>% 
+  filter(
+    STATION == "Flat Island",
+    TIMESTAMP >= min_timestamp & TIMESTAMP <= max_timestamp
+  )
+
+p2 <- plot_filtered_data(
+  long_raw, long_filt,
+  colour_palette = colour_pal,
+  date_breaks_major = "2 month",
+  date_labels_format = "%Y-%b",
+  plotly_friendly = FALSE) +
+  plot_theme
+
+p2
+
+```
 
 ```{r, eval=FALSE}
 
@@ -230,8 +267,8 @@ p <- ggplot(dd, aes(STATION, n_degree_days, fill = DEPTH,
                       "Growing Days: ", n_growing_days, "\n",
                       "Degree Days: ", n_degree_days))
 ) +
-  geom_point(pch = 21, size = 4,
-             position = position_jitter(width = 0.05, height = 0, seed = 10)) +
+  geom_point(pch = 21, size = 4, alpha = 0.75,
+             position = position_jitter(width = 0, height = 0, seed = 10)) +
   scale_fill_manual("Depth (m)", values = colour_pal) +
   scale_x_discrete(name = "") +
   scale_y_continuous(name = "Number of Degree Days") +
@@ -288,7 +325,7 @@ p <-  ggplot(tgc_table, aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, fill = DEPT
                       "Initial Weight: ", TGC_INITIAL_WEIGHT ))) +
   geom_point(
     pch = 21, size = 3, alpha = 0.75,
-    position = position_jitter(width = 0.15, height = 0, seed = 10)
+    position = position_jitter(width = 0, height = 0, seed = 10)
   ) +
   scale_fill_manual("Depth (m)", values = colour_pal, drop = FALSE) +
   scale_x_discrete("TGC Value") +
