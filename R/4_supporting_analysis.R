@@ -9,10 +9,12 @@ library(glue)
 library(here)          # relative files paths
 library(leaflet)       # interactive map   
 library(lubridate)
+library(RColorBrewer)
 library(sf)            # static map for paper
 library(strings)       # convert_depth_to_ordered_factor() function
 library(tgc)           # season functions
 library(plotly)
+library(tidyr)
 
 fig_width <- 19
 fig_height <- 7
@@ -41,11 +43,14 @@ dat_raw <- import_strings_data(
 colour_pal <- get_colour_palette(dat_raw)
 
 # model results
-dat_seasons <- fread(here("results/dat_seasons.csv"), data.table = FALSE)
-# gap_table <- fread(here("results/gap_table.csv"), data.table = FALSE)
-dd <- fread(here("results/dd.csv"), data.table = FALSE)
-tgc_table <- fread(here("results/tgc_table.csv"), data.table = FALSE)
-dat_filt <- fread(here("results/dat_filt.csv"), data.table = FALSE)
+results <- readRDS(here("results/model_results.rds"))
+
+# dat_raw <- results$dat_raw
+dat_seasons <- results$dat_seasons
+dat_filt <- results$dat_filt
+gap_table <- results$gap_table
+dd <- results$dd
+tgc_table <- results$tgc_table
 
 
 # Madeline Point ----------------------------------------------------------
@@ -170,7 +175,8 @@ x1 <- tgc_table %>%
   group_by(TGC) %>% 
   summarise(
     MIN = min(TGC_INITIAL_WEIGHT),
-    MAX = max(TGC_INITIAL_WEIGHT)
+    MAX = max(TGC_INITIAL_WEIGHT),
+    AVG = mean(TGC_INITIAL_WEIGHT)
   ) %>% 
   mutate(DIFF = MAX - MIN)
 
@@ -179,7 +185,8 @@ x2 <- tgc_table %>%
   group_by(TGC) %>% 
   summarise(
     MIN = min(TGC_INITIAL_WEIGHT),
-    MAX = max(TGC_INITIAL_WEIGHT)
+    MAX = max(TGC_INITIAL_WEIGHT),
+    AVG = mean(TGC_INITIAL_WEIGHT)
   ) %>% 
   mutate(DIFF = MAX - MIN)
 
@@ -259,7 +266,7 @@ med %>%
 
 
 med %>% 
-  filter(TIMESTAMP >= as_datetime("2018-11-01") &
+  filter(TIMESTAMP >= as_datetime("2018-10-01") &
            TIMESTAMP <= as_datetime("2019-01-19")) %>% 
   group_by(DEPTH) %>% 
   summarise(MEAN = mean(VALUE),
@@ -269,6 +276,20 @@ med %>%
   ungroup() %>% 
   mutate(across(2:5, .fns = ~round(., digits = 2)))
 
+
+
+med %>% 
+  filter(TIMESTAMP >= as_datetime("2018-09-01") &
+           TIMESTAMP <= as_datetime("2018-09-30")) %>% 
+  plot_temperature_at_depth(plotly_friendly = TRUE) %>% 
+  ggplotly()
+
+med %>% 
+  filter(TIMESTAMP >= as_datetime("2018-09-01") &
+           TIMESTAMP <= as_datetime("2018-09-30")) %>% 
+  summarise(MEAN = mean(VALUE))
+
+mean(med$VALUE)
 
 
 tgc_table %>% 
@@ -298,7 +319,20 @@ med_heat_events <- identify_heat_stress_events(med) %>%
     as.numeric(difftime(stress_end, stress_start, units = "days")), digits = 2) 
 )
 
+tgc_table %>% 
+  filter(STATION == "Beaver Point") %>% 
+  group_by(TGC) %>% 
+  summarise(
+    MIN = min(TGC_INITIAL_WEIGHT),
+    MAX = max(TGC_INITIAL_WEIGHT),
+    AVG = mean(TGC_INITIAL_WEIGHT)
+  ) %>% 
+  mutate(DIFF = MAX - MIN)
 
+tgc_table %>% 
+  filter(STATION == "Beaver Point", DEPTH == 5 | DEPTH == 10) %>% 
+  select(TGC, DEPTH, TGC_INITIAL_WEIGHT) %>% 
+  arrange(TGC, DEPTH)
 
 
 # Flat Island ----------------------------------------------------------
@@ -319,7 +353,6 @@ ggsave(
 )
 
 
-
 long %>% 
   filter(TIMESTAMP > as_datetime("2019-06-02") & 
            TIMESTAMP < as_datetime("2019-06-08")) %>% 
@@ -336,18 +369,92 @@ ggsave(
 
 
 
-# Beaver Point ----------------------------------------------------------
-
-med <- dat_seasons %>% 
-  filter(STATION == "Beaver Point")
-
-med %>% 
-  filter(TIMESTAMP > as_datetime("2018-09-11") &
-           TIMESTAMP < as_datetime("2018-09-15")) %>% 
-  plot_temperature_at_depth()
-
-
-
+long %>% 
+  filter(TIMESTAMP > as_datetime("2019-06-01") & 
+           TIMESTAMP < as_datetime("2019-09-30")) %>% 
+  group_by(DEPTH) %>% 
+  summarise(MEAN = mean(VALUE),
+            SD = sd(VALUE),
+            MIN = min(VALUE),
+            MAX = max(VALUE)) %>% 
+  ungroup() %>% 
+  mutate(across(2:5, .fns = ~round(., digits = 2)))
 
 
+long %>% 
+  filter(TIMESTAMP > as_datetime("2019-11-01") & 
+           TIMESTAMP < as_datetime("2020-03-31")) %>% 
+  group_by(DEPTH) %>% 
+  summarise(MEAN = mean(VALUE),
+            SD = sd(VALUE),
+            MIN = min(VALUE),
+            MAX = max(VALUE)) %>% 
+  ungroup() %>% 
+  mutate(across(2:5, .fns = ~round(., digits = 2)))
+
+
+
+long %>% 
+  filter(TIMESTAMP > as_datetime("2020-04-01") & 
+           TIMESTAMP < as_datetime("2020-09-30")) %>% 
+  group_by(DEPTH) %>% 
+  summarise(MEAN = mean(VALUE),
+            SD = sd(VALUE),
+            MIN = min(VALUE),
+            MAX = max(VALUE)) %>% 
+  ungroup() %>% 
+  mutate(across(2:5, .fns = ~round(., digits = 2)))
+
+tgc_table %>% 
+  filter(STATION == "Flat Island") %>% 
+  group_by(TGC) %>% 
+  summarise(
+    MIN = min(TGC_INITIAL_WEIGHT),
+    MAX = max(TGC_INITIAL_WEIGHT),
+    AVG = mean(TGC_INITIAL_WEIGHT)
+  ) %>% 
+  mutate(DIFF = MAX - MIN)
+
+
+# TGC ---------------------------------------------------------------------
+
+dd_input <- seq(500, 5000, 500)
+
+dd <- data.frame(n_degree_days = dd_input)
+
+w0 <- TGC_calculate_initial_weight(dd, final_weight = 5.5, tgc = c(0.25, 0.3, 0.35))
+
+w0 <- w0 %>% 
+  mutate(dw = 3 * (1.83 - TGC/1000*n_degree_days)^2)
+
+ggplot(w0, aes(n_degree_days, TGC_INITIAL_WEIGHT, col = factor(TGC))) +
+  geom_point() +
+  geom_line() +
+  theme_light()
+
+
+ggplot(w0, aes(n_degree_days, dw, col = factor(TGC))) +
+  geom_point() +
+  geom_line() +
+  theme_light()
+
+
+
+w0_wide <- w0 %>% 
+  pivot_wider(names_from = "TGC", values_from = "TGC_INITIAL_WEIGHT") %>% 
+  rename(REMEDIAL = `0.25`,
+         AVERAGE = `0.3`,
+         ELITE = `0.35`) %>% 
+  mutate(
+    DIFF_REMEDIAL = REMEDIAL - AVERAGE,
+    DIFF_ELITE = AVERAGE - ELITE,
+    SIGN = DIFF_REMEDIAL > DIFF_ELITE,
+    RANGE = REMEDIAL - ELITE
+  )
+
+
+w0_diff <- w0 %>% 
+  arrange(TGC, n_degree_days) %>% 
+  group_by(TGC) %>% 
+  mutate(DIFF =  TGC_INITIAL_WEIGHT - lead(TGC_INITIAL_WEIGHT))
 
