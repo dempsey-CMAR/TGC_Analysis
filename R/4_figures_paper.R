@@ -8,10 +8,10 @@ library(glue)          # used in map figure
 library(here)          # relative files path 
 library(lubridate)     # dates
 library(RColorBrewer)  # for TGC model figure
+library(readr)         # export table
 library(sf)            # static map 
 library(strings)       # convert_depth_to_ordered_factor() function
 library(tgc)           # season functions
-library(plotly)        # interactive figures
 library(viridis)       # colour palette
 
 # max size
@@ -31,8 +31,6 @@ tgc_table <- results$tgc_table
 
 # Plot params -------------------------------------------------------------
 theme_set(theme_light())
-text_size <- 8
-plot_theme <- theme(axis.text = element_text(size = text_size))
 colour_pal <- viridis(5, direction = -1)
 
 # Figure 1 ----------------------------------------------------------------
@@ -58,7 +56,9 @@ ggplot(w0, aes(n_degree_days, TGC_INITIAL_WEIGHT, col = factor(TGC))) +
   scale_x_continuous("Number of Degree Days") +
   scale_y_continuous("Initial Weight (kg)") +
   scale_colour_manual("TGC Value", values = brewer.pal(3, "Dark2")) +
+  guides(colour = guide_legend(keyheight = 0.75)) +
   theme(
+    text = element_text(size = 8), 
     legend.position = c(0.87, 0.77),
     legend.background = element_rect(fill = "white", colour = "darkgrey", size = 0.5),
     legend.title = element_text(size = 7)
@@ -136,7 +136,8 @@ p4_A <- mad %>%
     date_axis_name = NULL,
     date_breaks_major = "1 month",
     date_labels_format = "%Y-%b",
-  ) 
+  ) +
+  labs(title = "Madeline Point")
 
 p4_A
 
@@ -149,15 +150,16 @@ p4_B <- beaver %>%
   select(-SEASON) %>% 
   plot_filtered_data(
     beaver_filt,
+    legend_position = "right",
     colour_palette = colour_pal,
     ylims = ylims,
     date_axis_name = NULL,
     date_breaks_major = "1 month",
     date_labels_format = "%Y-%b"
-  )
+  ) +
+  labs(title = "Beaver Point")
 
 p4_B
-
 
 # Flat Island
 flat <- filter(dat_seasons, STATION == "Flat Island") 
@@ -172,7 +174,8 @@ p4_C <- flat %>%
     ylims = ylims,
     date_breaks_major = "2 month",
     date_labels_format = "%Y-%b"
-  )
+  ) +
+  labs(title = "Flat Island")
 
 p4_C
 
@@ -181,25 +184,27 @@ p4 <- ggarrange(
   ncol = 1, 
   labels = "AUTO",
   font.label = list(face = "bold"),
-  label.x = 0.92, label.y = 0.95,
+#  label.x = 0.92, label.y = 0.95,
   common.legend = TRUE, legend = "bottom"
 )
 
+p4
+
 ggsave(
-  filename = "figure4.png",
+  filename = "figure4v2.png",
   path = here("paper/figs"),
   device = "png",
-  width = 25, height = 25, units = "cm",
+  width = 25, height = 27, units = "cm",
   dpi = 600
 )
 
 
-
-
 # Figure 5 ----------------------------------------------------------------
 
+point_size <- 4
+
 p5_A <- ggplot(dd, aes(STATION, n_degree_days, fill = DEPTH)) +
-  geom_point(pch = 21, size = 3, alpha = 0.75) +
+  geom_point(pch = 21, size = point_size, alpha = 0.75) +
   scale_fill_manual("Depth (m)", values = colour_pal) +
   scale_x_discrete(name = "") +
   scale_y_continuous(name = "Number of Degree Days") 
@@ -210,47 +215,60 @@ p5_A
 p5_B  <- ggplot(
   tgc_table, aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, fill = DEPTH)
 ) +
-  geom_point(pch = 21, size = 3, alpha = 0.75) +
+  geom_point(pch = 21, size = point_size, alpha = 0.75) +
   scale_fill_manual("Depth (m)", values = colour_pal, drop = FALSE) +
   scale_x_discrete("TGC Value") +
   scale_y_continuous("Initial Weight (kg)") +
   facet_wrap(~STATION) +
   theme(
     strip.background = element_rect(fill = "white", colour = "darkgrey"),
-    strip.text = element_text(colour = "grey30", size = 9)
+    strip.text = element_text(colour = "grey30", size = 10)
   )
 
 
 p5_B
 
 
-# p5 <- ggarrange(
-#   p5_A, p5_B, 
-#   ncol = 1, 
-#   labels = "AUTO",
-#   font.label = list(face = "bold"),
-#   label.x = 0.92, label.y = 0.95,
-#   common.legend = TRUE, legend = "bottom",
-#   align = "hv"
-# )
-
-p5
-
-
 p5_A / p5_B +
   plot_annotation(tag_levels = 'A') +
-  plot_layout(guides = 'collect') &
+  plot_layout(heights = c(1, 1.25),
+                guides = 'collect') &
   theme(plot.tag = element_text(face = 'bold')) 
 
 
 ggsave(
-  filename = "figure5.png",
+  filename = "figure5v2.png",
   path = here("paper/figs"),
   device = "png",
-  width = 25, height = 25, units = "cm",
+  width = 25, height = 15, units = "cm",
   dpi = 600
 )
 
 
+# Table 2 -----------------------------------------------------------------
 
+table2 <- dd %>%
+  mutate(
+    START_SEASON = format(as_date(START_SEASON)),
+    END_SEASON = format(as_date(END_SEASON)),
+    AVG_TEMPERATURE = round(AVG_TEMPERATURE, digits = 2),
+    n_degree_days = round(n_degree_days)
+  ) %>% 
+  rename(
+    Station = STATION,
+    `Depth (m)` = DEPTH,
+    `Season Start` = START_SEASON,
+    `Season End` = END_SEASON,
+    `Stocked Days` = STOCKED_DAYS,
+    `Filtered Days` = n_filtered_days,
+    `Growing Days` = n_growing_days,
+    `Average Temperature` = AVG_TEMPERATURE,
+    `Degree Days` = n_degree_days
+  )
+  
+write_csv(table2, file = here("paper/tables/Table2.csv"))
+  
+  
+  
+  
 
