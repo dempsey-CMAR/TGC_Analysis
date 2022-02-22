@@ -4,12 +4,12 @@
 .Ruserdata
 
 *.html
+*.png
 /data
 /results
-/figs
+/paper
 /old
-/leases
-
+R/supporting
 
 /rosm.cache
 
