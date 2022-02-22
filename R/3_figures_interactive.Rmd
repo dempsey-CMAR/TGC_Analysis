@@ -12,22 +12,19 @@ editor_options:
 
 knitr::opts_chunk$set(echo = FALSE, fig.width=9, message=FALSE)
 
-library(data.table)    # import example data
 library(dplyr)         # data manipulation 
 library(DT)            # interactive tables
 library(ggplot2)       # figures
-library(ggsflabel)
-library(ggspatial)
-library(glue)
-library(here)          # relative files paths
-library(leaflet)       # interactive map   
-library(lubridate)
+library(ggspatial)     # for basemap
+library(glue)          # used in map figure
+library(here)          # relative files path 
+library(lubridate)     # dates
 library(RColorBrewer)  # for TGC model figure
-library(sf)            # static map for paper
+library(sf)            # static map 
 library(strings)       # convert_depth_to_ordered_factor() function
 library(tgc)           # season functions
-library(plotly)
-library(viridis)
+library(plotly)        # interactive figures
+library(viridis)       # colour palette
 
 dt_options <- list(
       dom = 'ft',
@@ -54,69 +51,7 @@ gap_table <- results$gap_table
 dd <- results$dd
 tgc_table <- results$tgc_table
 
-```
-
-## Station Map
-
-```{r, echo=FALSE}
-# 
-# dat_map <- dat_raw %>% 
-#   distinct(STATION, .keep_all = TRUE) 
-# 
-# dat_map %>% 
-#   leaflet() %>%
-#   addProviderTiles(providers$CartoDB.Positron)%>%
-#   addMarkers(~LONGITUDE, ~LATITUDE, label = ~STATION)
-
-```
-
-
-```{r, echo=FALSE, eval=FALSE}
-# 
-# dat_map <- dat_map %>% 
-#   mutate(
-#     SEASON = case_when(
-#       STATION == "Flat Island" ~ "Long Season",
-#       STATION == "Beaver Point" ~ "Medium Season",
-#       STATION == "Madeline Point" ~ "Short Season"
-#     ),
-#     LABEL = glue("{STATION} \n ({SEASON})")) %>% 
-#   st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = 4326, agr = "constant") 
-# 
-# map_box <- data.frame(Long = c(-66, -59.9), Lat = c(43.5, 47)) %>%
-#   st_as_sf(coords = c("Long", "Lat"), crs = 4326)
-# 
-# ggplot() +
-#   geom_sf(data = map_box) +
-#   annotation_map_tile(type = "cartolight", zoomin = -1) +
-#   geom_sf(data = dat_map) +
-#   geom_sf_label(
-#     data = dat_map, aes(label = LABEL),
-#     label.size = NA, fill = NA, nudge_y = -0.25, size = 2.7
-#   ) +
-#   scale_x_continuous(breaks = c(seq(-60, -66, -2))) +
-#   scale_y_continuous(breaks = c(seq(44, 47, 1))) +
-#   annotation_scale(location = "br") +
-#   annotation_north_arrow(
-#     location = "tl", which_north = "true",
-#     height = unit(1, "cm"),
-#     width = unit(1, "cm")
-#   ) +
-#   theme(axis.title = element_blank(),
-#         text = element_text(size = 10))
-# 
-# ggsave(
-#   filename = "figure1.png",
-#   path = here("figs"),
-#   device = "png",
-#   width = 11.2, height = 8, units = "cm",
-#   dpi = 600
-# )
-
-```
-
-
-```{r, echo=FALSE}
+# plot params
 i <- 1
 n_days <- 14
 text_size <- 8
@@ -126,9 +61,16 @@ colour_pal <- viridis(5, direction = -1)
 
 ```
 
-### TGC Model
+# Methods
+
+```{r, echo=FALSE, out.width="15%", out.height="15%"}
+knitr::include_graphics("Fig1.png")
+```
+
+Figure `r i`: Conceptual diagram of a sensor string (not to scale). Each string is anchored to the and suspended by a sub-surface buoy, with autonomous sensors attached at various depths.
 
 ```{r}
+i <- i + 1
 
 dd_input <- seq(500, 5000, 1)
 
@@ -142,25 +84,71 @@ w0 <- TGC_calculate_initial_weight(
 #   mutate(dw = 3 * (1.83 - TGC/1000*n_degree_days)^2)
 
 p1 <- ggplot(w0, aes(n_degree_days, TGC_INITIAL_WEIGHT, col = factor(TGC))) +
-  # geom_point() +
   geom_line(size = 1.5) +
   scale_x_continuous("Number of Degree Days") +
   scale_y_continuous("Initial Weight (kg)") +
   scale_colour_manual("TGC Value", values = brewer.pal(3, "Dark2")) +
-  plot_theme 
+  plot_theme +
+  theme(
+    legend.position = c(0.85, 0.8),
+    legend.background = element_rect(fill = "white", colour = "darkgrey")
+  ) 
 
 ggplotly(p1)
 
 ```
-Figure `r i`: Thermal growth coefficient model for three TGC values. 
+Figure `r i`: Initial weight required for salmon to grow to market size (5.5 kg) for three TGC values.
+(Better way to phrase this??)
+
+# Results
+
+```{r, echo=FALSE}
+
+i <- i + 1
+
+dat_map <- dat_raw %>%
+  distinct(STATION, .keep_all = TRUE) %>%
+  mutate(
+    SEASON = case_when(
+      STATION == "Flat Island" ~ "Long Season",
+      STATION == "Beaver Point" ~ "Medium Season",
+      STATION == "Madeline Point" ~ "Short Season"
+    ),
+    LABEL = glue("{STATION} \n ({SEASON})")) %>%
+  st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = 4326, agr = "constant")
+
+map_box <- data.frame(Long = c(-66, -59.9), Lat = c(43.5, 47)) %>%
+  st_as_sf(coords = c("Long", "Lat"), crs = 4326)
+
+ggplot() +
+  geom_sf(data = map_box) +
+  annotation_map_tile(type = "cartolight", zoomin = -1) +
+  geom_sf(data = dat_map) +
+  geom_sf_label(
+    data = dat_map, aes(label = LABEL),
+    label.size = NA, fill = NA, nudge_y = -0.25, size = 2.7
+  ) +
+  scale_x_continuous(breaks = c(seq(-60, -66, -2))) +
+  scale_y_continuous(breaks = c(seq(44, 47, 1))) +
+  annotation_scale(location = "br") +
+  annotation_north_arrow(
+    location = "tl", which_north = "true",
+    height = unit(1, "cm"),
+    width = unit(1, "cm")
+  ) +
+  theme(axis.title = element_blank(),
+        text = element_text(size = 10))
+```
+Figure `r i`: Stations selected to represent a short, medium, and long growing season.
 
 
 ## Growing Seasons {.tabset}
 
-### Madeline Point (Short Season)
+`r i <- i + 1`
+
+### Figure `r i`A
 
 ```{r, echo=FALSE, message=FALSE}
-i <- i +1
 
 short_filt <- dat_filt %>% filter(STATION == "Madeline Point")
 
@@ -186,7 +174,7 @@ p2
 
 ```
 
-### Beaver Point (Medium Season)
+### Figure `r i`B
 
 ```{r, echo=FALSE, message=FALSE}
 
@@ -213,6 +201,8 @@ p2
 
 ```
 
+### Figure `r i`C
+
 ```{r, echo=FALSE, message=FALSE}
 
 long_filt <- dat_filt %>% filter(STATION == "Flat Island")
@@ -238,27 +228,13 @@ p2
 
 ```
 
-```{r, eval=FALSE}
-
-fig_width <- 19
-fig_height <- 7
-
-ggsave(
-  p2,
-  filename = "figure2.png",
-  path = here("figs"),
-  device = "png",
-  width = fig_width, height = fig_height, units = "cm",
-  dpi = 600
-)
-
-```
+Figure `r i`: Temperature at each example station and depth. The blue shaded region indicates the superchill threshold, the red shaded area indicates the heat stress threshold, and the grey dashed line indicates the 4-degree threshold. Greyed observations were filtered out of the analysis.
 
 
-## Degree Days {.tabset}
+## Degree days & TGC
 
-### Figure 
 ```{r}
+i <- i+1
 
 p <- ggplot(dd, aes(STATION, n_degree_days, fill = DEPTH,
                     text = paste(
@@ -292,8 +268,10 @@ ggplotly(p, tooltip = "text") %>%
   )
 
 ```
+Figure `r i`: Number of growing degree days at each example station and depth.
 
-### Table
+
+Table 1: Growing season and degree day results for each example station and depth. (Note: Partial STOCKED_DAYS caused by the times of END_SEASON and START_SEASON; not shown).
 ```{r echo=FALSE}
 
 dd %>%
@@ -303,20 +281,17 @@ dd %>%
   ) %>% 
   arrange(STATION) %>% 
   datatable(
-    rownames = FALSE, options = dt_options, 
-    caption = "Figure 1: Degree days after applying season and heat stress filters."
+    rownames = FALSE, options = dt_options
   )
 
 ```
-Note: Partial STOCKED_DAYS caused by the times of END_SEASON and START_SEASON (not shown).
-
-## Thermal Growth Coefficient Model {.tabset}
 
 
-### Figure
 ```{r}
+i <- i +1
 
-p <-  ggplot(tgc_table, aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, fill = DEPTH,
+p <-  ggplot(
+  tgc_table, aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, fill = DEPTH,
              text = paste(
                       "Depth: ", DEPTH, "m", "\n",
                       "Average Temp: ", AVG_TEMPERATURE, "\n",
@@ -352,22 +327,7 @@ ggplotly(p, tooltip = "text") %>%
 
 ```
 
-
-### Table
-
-```{r}
-
-tgc_table %>%
-  select(-START_SEASON, -END_SEASON) %>%
-  arrange(STATION, DEPTH) %>%
-  datatable(rownames = FALSE, options = dt_options)
-
-```
-
-
-
-
-
+Figure `r i`: TGC model results. 
 
 
 
