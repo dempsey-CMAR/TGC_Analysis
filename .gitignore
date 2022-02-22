@@ -6,7 +6,6 @@
 *.html
 *.png
 /data
-/results
 /paper
 /old
 R/supporting
