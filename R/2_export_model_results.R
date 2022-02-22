@@ -2,14 +2,12 @@
 
 library(data.table)    # import example data
 library(dplyr)         # data manipulation 
-library(glue)
 library(here)          # relative files paths
-library(lubridate)
 library(strings)       # convert_depth_to_ordered_factor() function
 library(tgc)           # season functions
-library(tidyr)
+library(tidyr)         # separate function
 
-# import data
+# import temperature data for the three example stations
 dat_raw <- import_strings_data(
   add_county_col = FALSE,
   county = c("Halifax", "Guysborough_Dover Bay", "Lunenburg")
@@ -40,6 +38,7 @@ dat_raw <- import_strings_data(
 # Analysis -------------------------------------------------------------
 
 # CAN send this to count_degree_days() (but NOT if heat stress events are filtered)
+# filter for the growing seasons of interest
 dat_seasons <-  dat_raw %>% 
   filter_in_growing_seasons() %>% 
   filter(
@@ -56,14 +55,14 @@ gap_table <- dat_seasons %>%
   summarize(TOTAL_GAP_DAYS = sum(GAP_LENGTH_DAYS)) %>%
   ungroup()
 
-# degree days
+# calculate degree days for each STATION (automatically grouped by DEPTH)
 dd <- count_degree_days(dat_seasons, STATION, rm_gap_days = FALSE) %>% 
   select(-SEASON, -n_OBSERVATIONS) %>% 
   relocate(AVG_TEMPERATURE, .before = n_degree_days)
 
 # TGC model
-w_t <- 5.5
-tgc <- c(0.25, 0.30, 0.35)
+w_t <- 5.5                  # final weight 
+tgc <- c(0.25, 0.30, 0.35)  # TGC values
 
 tgc_table <- TGC_calculate_initial_weight(dd, final_weight = w_t, tgc = tgc) %>%
   arrange(STATION, DEPTH) %>% 
@@ -99,7 +98,7 @@ results <- list(
 
 saveRDS(results, here("results/model_results.rds"))
 
-
+# export results as csv files:
 # fwrite(dat_raw, here("results/dat_raw.csv"))
 # fwrite(dat_seasons, here("results/dat_seasons.csv"))
 # fwrite(dat_filt, here("results/dat_filt.csv"))
