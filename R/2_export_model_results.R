@@ -63,7 +63,7 @@ dd <- count_degree_days(dat_seasons, STATION, rm_gap_days = FALSE) %>%
 
 # TGC model
 w_t <- 5.5
-tgc <- c(0.25, 0.3, 0.35)
+tgc <- c(0.25, 0.30, 0.35)
 
 tgc_table <- TGC_calculate_initial_weight(dd, final_weight = w_t, tgc = tgc) %>%
   arrange(STATION, DEPTH) %>% 
