@@ -1,4 +1,4 @@
-# Feburary 4, 2022
+# June 3, 2022
 
 library(cowplot)       # to inset map figure
 library(dplyr)         # data manipulation 
@@ -8,6 +8,7 @@ library(ggspatial)     # for north arrow and scale bar
 library(glue)          # used in map figure
 library(here)          # relative file paths
 library(lubridate)     # dates
+library(patchwork)
 library(RColorBrewer)  # for TGC model figure
 library(rnaturalearth) # for map of North America
 library(rnaturalearthhires) # for map of NS
@@ -30,6 +31,11 @@ dat_filt <- results$dat_filt
 gap_table <- results$gap_table
 dd <- results$dd
 tgc_table <- results$tgc_table
+
+sensitiviy <- readRDS(here("results/sensitivity_results.rds"))
+tgc_comp_16 <- sensitiviy$tgc_comp_16
+tgc_comp_20 <- sensitiviy$tgc_comp_20
+
 
 # Plot params -------------------------------------------------------------
 theme_set(theme_light())
@@ -78,7 +84,7 @@ ggsave(
   dpi = 600
 )
 
-# Figure 3: station map ----------------------------------------------------------------
+# Figure 3 ----------------------------------------------------------------
 
 # north america - small scale for inset
 na <- ne_countries(
@@ -93,17 +99,12 @@ can <- ne_countries(
 # extract station coordinates and make labels
 dat_map <- dat_raw %>%
   distinct(STATION, .keep_all = TRUE) %>%
-  mutate(
-    SEASON = case_when(
-      STATION == "Flat Island" ~ "Long Season",
-      STATION == "Beaver Point" ~ "Medium Season",
-      STATION == "Madeline Point" ~ "Short Season"
-    ),
-    LABEL = glue("{STATION} \n ({SEASON})")) %>%
-  st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = st_crs(can), 
-           agr = "constant", remove = FALSE
-  ) %>% 
-  select(STATION, LABEL, LATITUDE, LONGITUDE, geometry)
+  create_station_label(
+    short = "Madeline Point", 
+    medium = "Beaver Point", 
+    long = "Flat Island"
+  ) %>%
+  st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = st_crs(can)) 
 
 # main map extents
 x_min <- -66.5
@@ -173,7 +174,7 @@ p3 <- cowplot::ggdraw() +
 
 ggsave(
   p3,
-  filename = "figure3_v2.png",
+  filename = "figure3.png",
   path = here("paper/figs"),
   device = "png",
   width = 12, height = 9, units = "cm",
@@ -200,7 +201,7 @@ p4_A <- mad %>%
     date_breaks_major = "1 month",
     date_labels_format = "%Y-%b",
   ) +
-  labs(title = "Madeline Point")
+  labs(title = "Madeline Point (Short Season)")
 
 p4_A
 
@@ -220,7 +221,7 @@ p4_B <- beaver %>%
     date_breaks_major = "1 month",
     date_labels_format = "%Y-%b"
   ) +
-  labs(title = "Beaver Point")
+  labs(title = "Beaver Point (Medium Season)")
 
 p4_B
 
@@ -238,7 +239,7 @@ p4_C <- flat %>%
     date_breaks_major = "2 month",
     date_labels_format = "%Y-%b"
   ) +
-  labs(title = "Flat Island")
+  labs(title = "Flat Island (Long Season)")
 
 p4_C
 
@@ -254,7 +255,7 @@ p4 <- ggarrange(
 p4
 
 ggsave(
-  filename = "figure4v2.png",
+  filename = "figure4.png",
   path = here("paper/figs"),
   device = "png",
   width = 25, height = 27, units = "cm",
@@ -264,35 +265,70 @@ ggsave(
 
 # Figure 5 ----------------------------------------------------------------
 
+dd %>% 
+  mutate(
+    PERCENT_HEAT_STRESS = (n_filtered_days / STOCKED_DAYS) * 100
+  ) %>% 
+  create_station_label(
+    short = "Madeline Point", 
+    medium = "Beaver Point", 
+    long = "Flat Island"
+  ) %>%
+  ggplot(aes(LABEL, PERCENT_HEAT_STRESS, fill = DEPTH)) +
+  geom_point(pch = 21, size = 3, alpha = 0.75) +
+  scale_fill_manual("Depth (m)", values = colour_pal) +
+  scale_x_discrete(name = "") +
+  scale_y_continuous(name = "% heat stress days") 
+
+ggsave(
+  filename = "figure5.png",
+  path = here("paper/figs"),
+  device = "png",
+  width = 17, height = 6, units = "cm",
+  dpi = 600
+)
+
+# Figure 6 ----------------------------------------------------------------
 point_size <- 4
 
-p5_A <- ggplot(dd, aes(STATION, n_degree_days, fill = DEPTH)) +
+p6_A <- dd %>% 
+  create_station_label(
+    short = "Madeline Point", 
+    medium = "Beaver Point", 
+    long = "Flat Island"
+  ) %>%
+  ggplot(aes(STATION, n_degree_days, fill = DEPTH)) +
   geom_point(pch = 21, size = point_size, alpha = 0.75) +
   scale_fill_manual("Depth (m)", values = colour_pal) +
   scale_x_discrete(name = "") +
   scale_y_continuous(name = "Number of Degree Days") 
 
-p5_A
+p6_A
 
 
-p5_B  <- ggplot(
-  tgc_table, aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, fill = DEPTH)
+p6_B  <- tgc_table %>% 
+  create_station_label(
+    short = "Madeline Point", 
+    medium = "Beaver Point", 
+    long = "Flat Island"
+  ) %>%
+ggplot(
+   aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, fill = DEPTH)
 ) +
   geom_point(pch = 21, size = point_size, alpha = 0.75) +
   scale_fill_manual("Depth (m)", values = colour_pal, drop = FALSE) +
   scale_x_discrete("TGC Value") +
   scale_y_continuous("Initial Weight (kg)") +
-  facet_wrap(~STATION) +
+  facet_wrap(~LABEL) +
   theme(
     strip.background = element_rect(fill = "white", colour = "darkgrey"),
     strip.text = element_text(colour = "grey30", size = 10)
   )
 
 
-p5_B
+p6_B
 
-
-p5_A / p5_B +
+p6_A / p6_B +
   plot_annotation(tag_levels = 'A') +
   plot_layout(heights = c(1, 1.25),
                 guides = 'collect') &
@@ -300,12 +336,68 @@ p5_A / p5_B +
 
 
 ggsave(
-  filename = "figure5v2.png",
+  filename = "figure6.png",
   path = here("paper/figs"),
   device = "png",
   width = 25, height = 15, units = "cm",
   dpi = 600
 )
+
+
+# Figure 7 ----------------------------------------------------------------
+
+dat_sens <- tgc_comp_16 %>% 
+  select(STATION, DEPTH, TGC, PERCENT_DIFF_16 = PERCENT_DIFF_weight) %>% 
+  left_join(
+    select(tgc_comp_20, STATION, DEPTH, TGC, PERCENT_DIFF_20 = PERCENT_DIFF_weight), 
+    by = c("STATION", "DEPTH", "TGC")) %>% 
+  filter(TGC == 0.3) %>% 
+  pivot_longer(
+    cols = c("PERCENT_DIFF_16", "PERCENT_DIFF_20"), names_to = "MODEL",
+    values_to = "PERCENT_DIFF"
+  ) %>% 
+  mutate(
+    PERCENT_DIFF = -1 * PERCENT_DIFF, # so that the strict model bars are on top
+    MODEL = if_else(MODEL == "PERCENT_DIFF_16", "16 degrees C", "20 degrees C")
+  ) %>% 
+  create_station_label(
+    short = "Madeline Point", 
+    medium = "Beaver Point", 
+    long = "Flat Island",
+    sep = " "
+  )
+
+
+
+ggplot(
+  dat_sens, 
+  aes(DEPTH, PERCENT_DIFF, fill = DEPTH, linetype = MODEL, group = DEPTH)
+) +
+  geom_col(position = "dodge", col = "black" , width = 0.5) +
+  geom_hline(yintercept = 0) +
+  scale_x_discrete(name = "Depth (m)") +
+  scale_y_continuous("Percent Difference (%)") + 
+  scale_fill_manual(name = "Depth (m)", values = colour_pal, guide = "none") + 
+  scale_linetype_manual(name = "Heat Stress\nThreshold", values = c(1, 2)) + 
+  facet_wrap(~LABEL, scales = "free_y", ncol = 1) +
+  theme(
+    strip.background = element_rect(fill = "white", colour = "darkgrey"),
+    strip.text = element_text(colour = "grey30", size = 10),
+  ) +
+  guides(linetype = guide_legend(override.aes = list(fill = c(NA, NA))))
+
+ggsave(
+  filename = "figure7.png",
+  path = here("paper/figs"),
+  device = "png",
+  dpi = 600,
+  width = 20,
+  height = 20,
+  units = "cm"
+)
+
+
+
 
 
 # Table 2 -----------------------------------------------------------------
@@ -320,13 +412,13 @@ table2 <- dd %>%
   rename(
     Station = STATION,
     `Depth (m)` = DEPTH,
-    `Season Start` = START_SEASON,
-    `Season End` = END_SEASON,
-    `Stocked Days` = STOCKED_DAYS,
-    `Filtered Days` = n_filtered_days,
-    `Growing Days` = n_growing_days,
+    `Stocking Date` = START_SEASON,
+    `Harvest Date` = END_SEASON,
+    `Number of Stocked Days` = STOCKED_DAYS,
+    `Number of Filtered Days` = n_filtered_days,
+    `Number of Growing Days` = n_growing_days,
     `Average Temperature` = AVG_TEMPERATURE,
-    `Degree Days` = n_degree_days
+    `Number of Degree Days` = n_degree_days
   )
   
 write_csv(table2, file = here("paper/tables/Table2.csv"))
