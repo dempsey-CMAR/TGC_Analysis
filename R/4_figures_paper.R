@@ -1,13 +1,16 @@
 # Feburary 4, 2022
 
+library(cowplot)       # to inset map figure
 library(dplyr)         # data manipulation 
 library(ggplot2)       # figures
 library(ggpubr)        # to arrange figures
-library(ggspatial)     # for basemap
+library(ggspatial)     # for north arrow and scale bar
 library(glue)          # used in map figure
-library(here)          # relative files path 
+library(here)          # relative file paths
 library(lubridate)     # dates
 library(RColorBrewer)  # for TGC model figure
+library(rnaturalearth) # for map of North America
+library(rnaturalearthhires) # for map of NS
 library(readr)         # export table
 library(sf)            # static map 
 library(strings)       # convert_depth_to_ordered_factor() function
@@ -16,7 +19,6 @@ library(viridis)       # colour palette
 
 # max size
 #width = 17, height = 22.5, units = "cm"
-
 
 
 # Import results ----------------------------------------------------------
@@ -46,12 +48,16 @@ dd_example <- data.frame(n_degree_days = dd_input)
 
 w0 <- TGC_calculate_initial_weight(
   dd_example, final_weight = 5.5, tgc = c(0.25, 0.30, 0.35)
-)
+) %>% 
+  mutate(
+    TGC = as.character(TGC),
+    TGC = if_else(TGC == "0.3", paste0(TGC, "0"), TGC)
+  )
 
 # w0 <- w0 %>% 
 #   mutate(dw = 3 * (1.83 - TGC/1000*n_degree_days)^2)
 
-ggplot(w0, aes(n_degree_days, TGC_INITIAL_WEIGHT, col = factor(TGC))) +
+ggplot(w0, aes(n_degree_days, TGC_INITIAL_WEIGHT, col = TGC)) +
   geom_line(size = 1.5) +
   scale_x_continuous("Number of Degree Days") +
   scale_y_continuous("Initial Weight (kg)") +
@@ -73,9 +79,18 @@ ggsave(
 )
 
 # Figure 3: station map ----------------------------------------------------------------
-map_box <- data.frame(Long = c(-66, -59.9), Lat = c(43.5, 47)) %>%
-  st_as_sf(coords = c("Long", "Lat"), crs = 4326)
 
+# north america - small scale for inset
+na <- ne_countries(
+  continent = "north america", returnclass = "sf", scale = "small"
+)
+
+# north america - large scale for main map
+can <- ne_countries(
+  continent = "north america", returnclass = "sf", scale = "large"
+)
+
+# extract station coordinates and make labels
 dat_map <- dat_raw %>%
   distinct(STATION, .keep_all = TRUE) %>%
   mutate(
@@ -85,35 +100,83 @@ dat_map <- dat_raw %>%
       STATION == "Madeline Point" ~ "Short Season"
     ),
     LABEL = glue("{STATION} \n ({SEASON})")) %>%
-  st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = 4326, agr = "constant") 
+  st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = st_crs(can), 
+           agr = "constant", remove = FALSE
+  ) %>% 
+  select(STATION, LABEL, LATITUDE, LONGITUDE, geometry)
 
-ggplot() +
-  geom_sf(data = map_box) +
-  annotation_map_tile(type = "cartolight", zoomin = -1) +
-  geom_sf(data = dat_map) +
+# main map extents
+x_min <- -66.5
+x_max <- -59.8
+y_min <- 43.5
+y_max <- 47
+
+# box for inset map
+ns_box <- data.frame(
+  lat = c(y_min, y_min, y_max, y_max),
+  long = c(x_min, x_max, x_max, x_min)
+) %>% 
+  st_as_sf(coords = c("long", "lat"), crs = st_crs(na)) %>%
+  summarise(geometry = st_combine(geometry)) %>%
+  st_cast("POLYGON") 
+
+# main map
+p1 <- ggplot() +
+  geom_sf(data = can, size = 0.5) +
+  geom_sf(
+    data = dat_map, 
+    pch = 21, col = "lightblue", fill = "blue", size = 3
+  ) +
   geom_sf_label(
     data = dat_map, aes(label = LABEL),
-    label.size = NA, fill = NA, nudge_y = -0.25, size = 2.7
+    nudge_y = -0.27, size = 2.7, alpha = 0.6, label.padding = unit(0.15, "lines")
   ) +
-  scale_x_continuous(breaks = c(seq(-60, -66, -2))) +
-  scale_y_continuous(breaks = c(seq(44, 47, 1))) +
+  scale_x_continuous(limits =  c(x_min, x_max), breaks = c(seq(-60, -66, -2))) +
+  scale_y_continuous(limits = c(y_min, y_max), breaks = c(seq(43, 47, 1))) +
   annotation_scale(location = "br") +
   annotation_north_arrow(
-    location = "tl", which_north = "true",
-    height = unit(1, "cm"),
-    width = unit(1, "cm")
+    location = "bl", which_north = "true",
+    height = unit(0.75, "cm"),
+    width = unit(0.75, "cm")
   ) +
   theme(
     axis.title = element_blank(),
     text = element_text(size = 10),
-    panel.border = element_rect(color = "black", fill = NA)
+    panel.border = element_rect(color = "black", fill = NA),
+    panel.grid = element_blank()
+  ) 
+
+# p1
+
+# inset 
+p2 <- ggplot() +
+  geom_sf(data = na, size = 0.25) +
+  geom_sf(data = ns_box, col = "red", fill = NA, size = 0.25) +
+  scale_x_continuous(limits = c(-130, -55)) +
+  scale_y_continuous(limits = c(30, 70)) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    panel.grid = element_blank(), 
+    plot.background = element_rect(fill = NA, color = NA)
   )
 
+# p2
+
+p3 <- cowplot::ggdraw() +
+  draw_plot(p1) +
+  draw_plot(p2, x = 0.08, y = 0.65, width = 0.3, height = 0.3)
+
+# p3
+
 ggsave(
-  filename = "figure3.png",
+  p3,
+  filename = "figure3_v2.png",
   path = here("paper/figs"),
   device = "png",
-  width = 10, height = 8, units = "cm",
+  width = 12, height = 9, units = "cm",
   dpi = 600
 )
 
