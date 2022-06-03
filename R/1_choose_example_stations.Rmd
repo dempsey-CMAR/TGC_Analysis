@@ -65,6 +65,9 @@ dat_raw %>%
 
 ```
 
+  - `r length(unique(dat_raw$STATION))` STATIONs have temperature data.
+  - `r nrow(distinct(dat_raw, STATION, DEPTH))` STATION + DEPTH combinations have temperature data.
+
 # Part 1: Growing Seasons {.tabset}
 
 Filter `dat_raw` for STATION + DEPTH data series with full season of data using the `filter_in_growing_seasons()` function, with `full_season = TRUE`. This will filter out data that is not part of a growing season, and assign each remaining observation a `SEASON` label.
@@ -187,6 +190,7 @@ gap_table %>%
 
 ```
 
+
 Filter out STATION + DEPTH + SEASON with data gap greater than 2 days.
 
 ```{r}
@@ -196,6 +200,9 @@ dat_seasons <- dat_seasons %>%
   filter(TOTAL_GAP_DAYS < 2)
 
 ```
+
+  - `r length(unique(dat_seasons$STATION))` STATIONs have data for at least 1 full season of data with no major data gaps.
+  - `r nrow(distinct(dat_seasons, STATION, DEPTH))` STATION + DEPTH combinations have data for at least 1 full season with no major data gaps.
 
 
 # Part 3: Growing Season Length
