@@ -16,6 +16,7 @@ library(readr)         # export table
 library(sf)            # static map 
 library(strings)       # convert_depth_to_ordered_factor() function
 library(tgc)           # season functions
+library(tidyr)         # to format the sensitivity results
 library(viridis)       # colour palette
 
 # max size
@@ -297,7 +298,7 @@ p6_A <- dd %>%
     medium = "Beaver Point", 
     long = "Flat Island"
   ) %>%
-  ggplot(aes(STATION, n_degree_days, fill = DEPTH)) +
+  ggplot(aes(LABEL, n_degree_days, fill = DEPTH)) +
   geom_point(pch = 21, size = point_size, alpha = 0.75) +
   scale_fill_manual("Depth (m)", values = colour_pal) +
   scale_x_discrete(name = "") +
@@ -367,8 +368,6 @@ dat_sens <- tgc_comp_16 %>%
     sep = " "
   )
 
-
-
 ggplot(
   dat_sens, 
   aes(DEPTH, PERCENT_DIFF, fill = DEPTH, linetype = MODEL, group = DEPTH)
@@ -387,12 +386,12 @@ ggplot(
   guides(linetype = guide_legend(override.aes = list(fill = c(NA, NA))))
 
 ggsave(
-  filename = "figure7.png",
+  filename = "figure7_v2.png",
   path = here("paper/figs"),
   device = "png",
   dpi = 600,
-  width = 20,
-  height = 20,
+  width = 17,
+  height = 12,
   units = "cm"
 )
 
