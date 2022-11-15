@@ -15,6 +15,6 @@ knitr::opts_chunk$set(
 
 Analysis for submitted manuscript.
 
-Uses the [tgc]("https://github.com/dempsey-CMAR/tgc") package.
+Uses the [tgc](https://github.com/dempsey-CMAR/tgc) package.
 
 More info to come.

@@ -5,6 +5,6 @@
 
 Analysis for submitted manuscript.
 
-Uses the [tgc](%22https://github.com/dempsey-CMAR/tgc%22) package.
+Uses the [tgc](https://github.com/dempsey-CMAR/tgc) package.
 
 More info to come.
