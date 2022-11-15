@@ -44,49 +44,6 @@ colour_pal <- viridis(5, direction = -1)
 
 # Figure 1 ----------------------------------------------------------------
 
-# not made in R
-
-
-
-# Figure 2 ----------------------------------------------------------------
-dd_input <- seq(500, 5000, 1)
-
-dd_example <- data.frame(n_degree_days = dd_input)
-
-w0 <- TGC_calculate_initial_weight(
-  dd_example, final_weight = 5.5, tgc = c(0.25, 0.30, 0.35)
-) %>% 
-  mutate(
-    TGC = as.character(TGC),
-    TGC = if_else(TGC == "0.3", paste0(TGC, "0"), TGC)
-  )
-
-# w0 <- w0 %>% 
-#   mutate(dw = 3 * (1.83 - TGC/1000*n_degree_days)^2)
-
-ggplot(w0, aes(n_degree_days, TGC_INITIAL_WEIGHT, col = TGC)) +
-  geom_line(size = 1.5) +
-  scale_x_continuous("Number of Degree Days") +
-  scale_y_continuous("Initial Weight (kg)") +
-  scale_colour_manual("TGC Value", values = brewer.pal(3, "Dark2")) +
-  guides(colour = guide_legend(keyheight = 0.75)) +
-  theme(
-    text = element_text(size = 8), 
-    legend.position = c(0.87, 0.77),
-    legend.background = element_rect(fill = "white", colour = "darkgrey", size = 0.5),
-    legend.title = element_text(size = 7)
-  ) 
-
-ggsave(
-  filename = "figure2.png",
-  path = here("paper/figs"),
-  device = "png",
-  width = 10, height = 7, units = "cm",
-  dpi = 600
-)
-
-# Figure 3 ----------------------------------------------------------------
-
 # north america - small scale for inset
 na <- ne_countries(
   continent = "north america", returnclass = "sf", scale = "small"
@@ -127,7 +84,7 @@ p1 <- ggplot() +
   geom_sf(data = can, size = 0.5) +
   geom_sf(
     data = dat_map, 
-    pch = 21, col = "lightblue", fill = "blue", size = 3
+    pch = 21, col = "black", fill = "blue", size = 3
   ) +
   geom_sf_label(
     data = dat_map, aes(label = LABEL),
@@ -171,14 +128,77 @@ p3 <- cowplot::ggdraw() +
   draw_plot(p1) +
   draw_plot(p2, x = 0.08, y = 0.65, width = 0.3, height = 0.3)
 
-# p3
+p3
 
 ggsave(
   p3,
-  filename = "figure3.png",
+  filename = "figure1.jpg",
   path = here("paper/figs"),
-  device = "png",
+  device = "jpg",
   width = 12, height = 9, units = "cm",
+  dpi = 600
+)
+
+
+# Figure 2 ----------------------------------------------------------------
+
+# Made in Canva
+# https://www.canva.com/design/DAFRRFR5kdk/OtfidOa0TBbuKnPtQOQVgw/edit
+
+
+# Figure 3 ----------------------------------------------------------------
+
+dd_input <- seq(500, 5000, 1)
+
+dd_example <- data.frame(n_degree_days = dd_input)
+
+w0 <- TGC_calculate_initial_weight(
+  dd_example, final_weight = 5.5, tgc = c(0.25, 0.30, 0.35)
+) %>% 
+  mutate(
+    TGC = case_when(
+      TGC == 0.25 ~ "Remedial (0.25)",
+      TGC == 0.30 ~ "Average (0.30)",
+      TGC == 0.35 ~ "Elite (0.35)"
+    ),
+    TGC = ordered(
+      TGC, levels = c("Remedial (0.25)", "Average (0.30)", "Elite (0.35)" )
+    )
+    # TGC = as.character(TGC),
+    # TGC = if_else(TGC == "0.3", paste0(TGC, "0"), TGC)
+  )
+
+# w0 <- w0 %>% 
+#   mutate(dw = 3 * (1.83 - TGC/1000*n_degree_days)^2)
+
+ggplot(
+  w0, 
+  aes(n_degree_days, TGC_INITIAL_WEIGHT, col = TGC, linetype = TGC)
+  ) +
+  geom_line(size = 1) +
+  scale_x_continuous("Number of Degree Days") +
+  scale_y_continuous("Initial Weight (kg)") +
+  scale_colour_manual("TGC Value", values = brewer.pal(3, "Dark2")) +
+  scale_linetype_manual(
+    "TGC Value", 
+    # values = c(1, 1, 1)
+    values = c(2, 1, 4)
+    ) +
+  guides(colour = guide_legend(keyheight = 0.75)) +
+  theme(
+    text = element_text(size = 8), 
+    # legend.position = c(0.87, 0.77)
+    legend.position = c(0.8, 0.77),
+    legend.background = 
+      element_rect(fill = "white", colour = "darkgrey", size = 0.5),
+    legend.title = element_text(size = 7)
+  ) 
+
+ggsave(
+  filename = "figure3.jpg",
+  path = here("paper/figs"),
+  device = "jpg",
+  width = 10, height = 7, units = "cm",
   dpi = 600
 )
 
@@ -247,7 +267,7 @@ p4_C
 p4 <- ggarrange(
   p4_A, p4_B, p4_C, 
   ncol = 1, 
-  labels = "AUTO",
+  labels = c("(A)", "(B)", "(C)"),
   font.label = list(face = "bold"),
 #  label.x = 0.92, label.y = 0.95,
   common.legend = TRUE, legend = "bottom"
@@ -256,9 +276,9 @@ p4 <- ggarrange(
 p4
 
 ggsave(
-  filename = "figure4.png",
+  filename = "figure4.jpg",
   path = here("paper/figs"),
-  device = "png",
+  device = "jpg",
   width = 25, height = 27, units = "cm",
   dpi = 600
 )
@@ -282,9 +302,9 @@ dd %>%
   scale_y_continuous(name = "% heat stress days") 
 
 ggsave(
-  filename = "figure5.png",
+  filename = "figure5.jpg",
   path = here("paper/figs"),
-  device = "png",
+  device = "jpg",
   width = 17, height = 6, units = "cm",
   dpi = 600
 )
@@ -302,7 +322,11 @@ p6_A <- dd %>%
   geom_point(pch = 21, size = point_size, alpha = 0.75) +
   scale_fill_manual("Depth (m)", values = colour_pal) +
   scale_x_discrete(name = "") +
-  scale_y_continuous(name = "Number of Degree Days") 
+  scale_y_continuous(
+    name = "Number of Degree Days", 
+    limits = c(0, 5000),
+    minor_breaks = seq(0, 5000, 1000)
+  ) 
 
 p6_A
 
@@ -313,8 +337,18 @@ p6_B  <- tgc_table %>%
     medium = "Beaver Point", 
     long = "Flat Island"
   ) %>%
+  mutate(
+    TGC = case_when(
+      TGC == 0.25 ~ "Remedial\n(0.25)",
+      TGC == 0.30 ~ "Average\n(0.30)",
+      TGC == 0.35 ~ "Elite\n(0.35)"
+    ),
+    TGC = ordered(
+       TGC, levels = c("Remedial\n(0.25)", "Average\n(0.30)", "Elite\n(0.35)" )
+     )
+  ) %>% 
 ggplot(
-   aes(x = factor(TGC), y = TGC_INITIAL_WEIGHT, fill = DEPTH)
+   aes(x = TGC, y = TGC_INITIAL_WEIGHT, fill = DEPTH)
 ) +
   geom_point(pch = 21, size = point_size, alpha = 0.75) +
   scale_fill_manual("Depth (m)", values = colour_pal, drop = FALSE) +
@@ -330,17 +364,20 @@ ggplot(
 p6_B
 
 p6_A / p6_B +
-  plot_annotation(tag_levels = 'A') +
-  plot_layout(heights = c(1, 1.25),
-                guides = 'collect') &
-  theme(plot.tag = element_text(face = 'bold')) 
+  plot_annotation(tag_levels = list(c('(A)', '(B)'))) +
+  plot_layout(heights = c(1, 1),
+              guides = 'collect') &
+  theme(
+    plot.tag = element_text(face = 'bold'),
+    text = element_text(size = 12)    
+  ) 
 
 
 ggsave(
-  filename = "figure6.png",
+  filename = "figure6.jpg",
   path = here("paper/figs"),
-  device = "png",
-  width = 25, height = 15, units = "cm",
+  device = "jpg",
+  width = 20, height = 16, units = "cm",
   dpi = 600
 )
 
@@ -375,7 +412,8 @@ ggplot(
   geom_col(position = "dodge", col = "black" , width = 0.5) +
   geom_hline(yintercept = 0) +
   scale_x_discrete(name = "Depth (m)") +
-  scale_y_continuous("Percent Difference (%)") + 
+  
+  scale_y_continuous("Difference (%) from original model") + 
   scale_fill_manual(name = "Depth (m)", values = colour_pal, guide = "none") + 
   scale_linetype_manual(name = "Heat Stress\nThreshold", values = c(1, 2)) + 
   facet_wrap(~LABEL, scales = "free_y", ncol = 1) +
@@ -386,9 +424,9 @@ ggplot(
   guides(linetype = guide_legend(override.aes = list(fill = c(NA, NA))))
 
 ggsave(
-  filename = "figure7_v2.png",
+  filename = "figure7.jpg",
   path = here("paper/figs"),
-  device = "png",
+  device = "jpg",
   dpi = 600,
   width = 17,
   height = 12,
