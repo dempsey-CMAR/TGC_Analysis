@@ -222,6 +222,9 @@ seasons_table <- dat_seasons %>%
   convert_depth_to_ordered_factor() %>% 
   arrange(STATION, SEASON, DEPTH)
 
+adcp_count_obs(seasons_table, column = "SEASON_DAYS", n_ints = 3)
+adcp_count_obs(seasons_table, column = "SEASON_MONTHS", n_ints = 3)
+
 
 # use above instead of identify_growing_seasons() to find start/end of each season
 # can't use identify_growing_seasons() on data that is already filtered for seasons:
